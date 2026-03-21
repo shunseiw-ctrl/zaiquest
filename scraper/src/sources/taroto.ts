@@ -14,7 +14,7 @@ async function fetchPage(url: string): Promise<string> {
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'ZaiquestBot/1.0 (building material search; polite crawler)',
-      'Accept': 'text/html',
+      Accept: 'text/html',
     },
   });
 
@@ -25,15 +25,14 @@ async function fetchPage(url: string): Promise<string> {
   return response.text();
 }
 
-/** Map taroto category names to our category slugs */
-function mapCategory(category: string): string | undefined {
-  const lower = category.toLowerCase();
-  if (lower.includes('換気扇') || lower.includes('パイプファン')) return 'ventilation-fan';
-  if (lower.includes('レンジ') || lower.includes('フード')) return 'range-hood';
-  if (lower.includes('ダクト')) return 'duct-fan';
-  if (lower.includes('浴室') || lower.includes('乾燥')) return 'bathroom-dryer';
-  return undefined;
-}
+/** Category definitions with slug mappings */
+const CATEGORIES = [
+  { path: 'kanki-pipe', slug: 'ventilation-fan', label: 'パイプファン' },
+  { path: 'kanki-duct', slug: 'duct-fan', label: 'ダクト換気扇' },
+  { path: 'kanki-kitchen', slug: 'range-hood', label: 'レンジフード' },
+  { path: 'kanki-bath', slug: 'bathroom-dryer', label: '浴室乾燥機' },
+  { path: 'kanki-kabe', slug: 'ventilation-fan', label: '壁付換気扇' },
+] as const;
 
 /** Map manufacturer names to slugs */
 function mapManufacturer(name: string): string {
@@ -41,7 +40,20 @@ function mapManufacturer(name: string): string {
   if (lower.includes('panasonic') || lower.includes('パナソニック')) return 'panasonic';
   if (lower.includes('三菱') || lower.includes('mitsubishi')) return 'mitsubishi';
   if (lower.includes('東芝') || lower.includes('toshiba')) return 'toshiba';
-  return 'taroto'; // fallback
+  return 'other';
+}
+
+/** Extract price number from text like "￥8,682(税込)" */
+function extractPrice(text: string): string | null {
+  const match = text.match(/[￥¥]\s*([\d,]+)/);
+  return match ? match[1].replace(/,/g, '') : null;
+}
+
+/** Extract model number from product title */
+function extractModelNumber(text: string): string | null {
+  // Match patterns like VFP-8GK4, FY-08PD9D, V-08PQFF4, DVB-18S4, WD-240DK2, etc.
+  const match = text.match(/([A-Z]{1,5}[\-]?\d{1,5}[A-Z\d\-()]*)/i);
+  return match ? match[1] : null;
 }
 
 export interface TarotoScrapingResult {
@@ -49,139 +61,153 @@ export interface TarotoScrapingResult {
   errors: string[];
 }
 
-/** Scrape taroto.jp ventilation products */
-export async function scrapeTaroto(): Promise<TarotoScrapingResult> {
+/** Scrape all products from a single category listing page */
+function parseListingPage(
+  html: string,
+  categorySlug: string,
+): RawProduct[] {
+  const $ = cheerio.load(html);
   const products: RawProduct[] = [];
-  const errors: string[] = [];
 
-  // Start from the ventilation category listing page
-  // taroto.jp typically has table-based product listings with pricing comparisons
-  try {
-    const html = await fetchPage(`${BASE_URL}/category/ventilation/`);
-    const $ = cheerio.load(html);
+  // Find all product links
+  const productLinks = $('a[href*="/view/item/"]');
+  const seen = new Set<string>();
 
-    // Find product links in the listing
-    const productLinks: string[] = [];
-    $('a[href*="/product/"]').each((_, el) => {
-      const href = $(el).attr('href');
-      if (href) {
-        const fullUrl = href.startsWith('http') ? href : `${BASE_URL}${href}`;
-        if (!productLinks.includes(fullUrl)) {
-          productLinks.push(fullUrl);
-        }
+  productLinks.each((_, el) => {
+    const $el = $(el);
+    const href = $el.attr('href') || '';
+    const text = $el.text().trim();
+
+    // Skip if no text content (image-only links) or already processed
+    if (!text || text.length < 5) return;
+    const itemId = href.match(/\/view\/item\/(\d+)/)?.[1];
+    if (!itemId || seen.has(itemId)) return;
+    seen.add(itemId);
+
+    const modelNumber = extractModelNumber(text);
+    if (!modelNumber) return;
+
+    // Find manufacturer - check sibling/parent elements
+    const $parent = $el.parent();
+    const parentText = $parent.text();
+    const manufacturerSlug = mapManufacturer(parentText || text);
+
+    // Find price - look in parent container for ￥ text
+    let priceText: string | null = null;
+    $parent.find('div, span').each((_, child) => {
+      const childText = $(child).text();
+      if (childText.includes('￥') && !priceText) {
+        priceText = extractPrice(childText);
       }
     });
-
-    console.log(`Found ${productLinks.length} product links on taroto.jp`);
-
-    // Scrape each product detail page
-    for (const link of productLinks) {
-      try {
-        const productHtml = await fetchPage(link);
-        const product = parseProductPage(productHtml, link);
-        if (product) {
-          products.push(product);
+    // Also check parent's siblings
+    if (!priceText) {
+      $parent.siblings().each((_, sib) => {
+        const sibText = $(sib).text();
+        if (sibText.includes('￥') && !priceText) {
+          priceText = extractPrice(sibText);
         }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        errors.push(`Failed to scrape ${link}: ${msg}`);
-      }
+      });
     }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    errors.push(`Failed to load taroto listing: ${msg}`);
-  }
 
-  return { products, errors };
+    // Find image URL
+    let imageUrl: string | null = null;
+    const $img = $parent.find('img[src*="itemimages"]').first();
+    if ($img.length) {
+      imageUrl = $img.attr('src') || null;
+    } else {
+      // Check sibling links for image
+      $parent.parent().find('img[src*="itemimages"]').first().each((_, img) => {
+        imageUrl = $(img).attr('src') || null;
+      });
+    }
+
+    const productUrl = href.startsWith('http') ? href : `${BASE_URL}${href.split('?')[0]}`;
+    const name = text.replace(modelNumber, '').trim() || text;
+
+    products.push({
+      model_number: modelNumber,
+      name,
+      manufacturer_slug: manufacturerSlug,
+      category_slug: categorySlug,
+      street_price: priceText,
+      product_url: productUrl,
+      image_url: imageUrl,
+      source: 'taroto',
+      source_id: itemId,
+      raw_data: null,
+    });
+  });
+
+  return products;
 }
 
-/** Parse a single taroto product page */
-function parseProductPage(html: string, url: string): RawProduct | null {
+/** Get total page count from listing page */
+function getPageCount(html: string): number {
   const $ = cheerio.load(html);
+  let maxPage = 1;
 
-  // Extract model number from title or header
-  const titleText = $('h1, .product-title, .item-title').first().text().trim();
-  const modelMatch = titleText.match(/([A-Z]{1,3}[\-\s]?\d{2,}[A-Z\d\-]*)/i);
-  if (!modelMatch) return null;
-
-  const modelNumber = modelMatch[1];
-
-  // Extract manufacturer from breadcrumb or product info
-  const breadcrumb = $('.breadcrumb, .category-path').text();
-  const manufacturerSlug = mapManufacturer(breadcrumb || titleText);
-
-  // Extract spec table
-  const specs: Record<string, string> = {};
-  $('table.spec-table tr, .product-spec tr, table tr').each((_, row) => {
-    const th = $(row).find('th, td:first-child').text().trim();
-    const td = $(row).find('td:last-child').text().trim();
-    if (th && td && th !== td) {
-      specs[th] = td;
+  // Look for pagination links with page parameter
+  $('a[href*="page="]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const pageMatch = href.match(/page=(\d+)/);
+    if (pageMatch) {
+      const page = parseInt(pageMatch[1], 10);
+      if (page > maxPage) maxPage = page;
     }
   });
 
-  // Extract prices
-  const listPriceText =
-    specs['メーカー希望小売価格'] || specs['定価'] || specs['希望小売価格'] || '';
-  const streetPriceText =
-    $('.price, .selling-price, .sale-price').first().text().trim() ||
-    specs['販売価格'] || specs['実売価格'] || '';
+  return maxPage;
+}
 
-  // Extract dimensions from spec table
-  const widthText = specs['幅'] || specs['W'] || null;
-  const heightText = specs['高さ'] || specs['H'] || null;
-  const depthText = specs['奥行'] || specs['D'] || null;
+/** Scrape taroto.jp ventilation products */
+export async function scrapeTaroto(): Promise<TarotoScrapingResult> {
+  const allProducts: RawProduct[] = [];
+  const errors: string[] = [];
+  const seenModels = new Set<string>();
 
-  // Try parsing composite dimension string like "W285×H285×D163"
-  const dimensionText = specs['外形寸法'] || specs['寸法'] || '';
-  let width = widthText;
-  let height = heightText;
-  let depth = depthText;
+  for (const category of CATEGORIES) {
+    try {
+      const firstPageUrl = `${BASE_URL}/view/category/${category.path}`;
+      console.log(`[Taroto] Fetching category: ${category.label} (${category.path})`);
 
-  if (dimensionText) {
-    const dimMatch = dimensionText.match(
-      /W?\s*(\d+)\s*[×x]\s*H?\s*(\d+)\s*[×x]\s*D?\s*(\d+)/i
-    );
-    if (dimMatch) {
-      width = width || dimMatch[1];
-      height = height || dimMatch[2];
-      depth = depth || dimMatch[3];
+      const firstHtml = await fetchPage(firstPageUrl);
+      const pageCount = getPageCount(firstHtml);
+      console.log(`[Taroto] ${category.label}: ${pageCount} pages`);
+
+      // Parse first page
+      const firstProducts = parseListingPage(firstHtml, category.slug);
+      for (const p of firstProducts) {
+        if (!seenModels.has(p.model_number)) {
+          seenModels.add(p.model_number);
+          allProducts.push(p);
+        }
+      }
+
+      // Parse remaining pages
+      for (let page = 2; page <= pageCount; page++) {
+        try {
+          const html = await fetchPage(`${firstPageUrl}?page=${page}`);
+          const products = parseListingPage(html, category.slug);
+          for (const p of products) {
+            if (!seenModels.has(p.model_number)) {
+              seenModels.add(p.model_number);
+              allProducts.push(p);
+            }
+          }
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          errors.push(`Failed page ${page} of ${category.path}: ${msg}`);
+        }
+      }
+
+      console.log(`[Taroto] ${category.label}: collected ${firstProducts.length}+ products`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Failed category ${category.path}: ${msg}`);
     }
   }
 
-  // Extract image
-  const imageUrl =
-    $('img.product-image, .product-photo img, .main-image img')
-      .first()
-      .attr('src') || null;
-
-  return {
-    model_number: modelNumber,
-    name: titleText.replace(modelNumber, '').trim() || titleText,
-    manufacturer_slug: manufacturerSlug,
-    category_slug: mapCategory(breadcrumb || titleText),
-    width_mm: width,
-    height_mm: height,
-    depth_mm: depth,
-    pipe_diameter: specs['接続パイプ径'] || specs['パイプ径'] || null,
-    voltage: specs['電圧'] || specs['電源'] || null,
-    airflow: specs['風量'] || specs['換気風量'] || null,
-    noise_level: specs['騒音'] || specs['騒音値'] || null,
-    power_consumption: specs['消費電力'] || null,
-    list_price: listPriceText || null,
-    street_price: streetPriceText || null,
-    product_url: url,
-    image_url: imageUrl
-      ? imageUrl.startsWith('http')
-        ? imageUrl
-        : `${BASE_URL}${imageUrl}`
-      : null,
-    usage: specs['用途'] || null,
-    description: null,
-    is_discontinued: titleText.includes('廃番') || titleText.includes('生産終了'),
-    predecessor_model: specs['後継品'] || specs['後継機種'] || null,
-    source: 'taroto',
-    source_id: null,
-    raw_data: specs,
-  };
+  console.log(`[Taroto] Total unique products: ${allProducts.length}`);
+  return { products: allProducts, errors };
 }

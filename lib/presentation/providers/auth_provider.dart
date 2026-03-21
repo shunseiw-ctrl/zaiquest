@@ -26,6 +26,13 @@ class AuthNotifier extends _$AuthNotifier {
     );
   }
 
+  Future<void> signInWithPassword(String email, String password) async {
+    await Supabase.instance.client.auth.signInWithPassword(
+      email: email,
+      password: password,
+    );
+  }
+
   Future<void> signOut() async {
     await Supabase.instance.client.auth.signOut();
   }

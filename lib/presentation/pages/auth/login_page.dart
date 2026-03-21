@@ -12,33 +12,57 @@ class LoginPage extends ConsumerStatefulWidget {
 
 class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
-  bool _isSending = false;
-  bool _isSent = false;
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _useMagicLink = false;
+  bool _magicLinkSent = false;
 
   @override
   void dispose() {
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _signInWithPassword() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(authNotifierProvider.notifier)
+          .signInWithPassword(email, password);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ログインエラー: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _sendMagicLink() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) return;
 
-    setState(() => _isSending = true);
+    setState(() => _isLoading = true);
     try {
-      await ref.read(authNotifierProvider.notifier).signInWithMagicLink(email);
-      setState(() {
-        _isSent = true;
-        _isSending = false;
-      });
+      await ref
+          .read(authNotifierProvider.notifier)
+          .signInWithMagicLink(email);
+      setState(() => _magicLinkSent = true);
     } catch (e) {
-      setState(() => _isSending = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('エラー: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -48,9 +72,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('ログイン')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: _isSent ? _buildSentView(theme) : _buildFormView(theme),
+        child: _magicLinkSent
+            ? _buildSentView(theme)
+            : _buildFormView(theme),
       ),
     );
   }
@@ -60,22 +86,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.mark_email_read, size: 64, color: theme.colorScheme.primary),
+          const SizedBox(height: 80),
+          Icon(Icons.mark_email_read,
+              size: 64, color: theme.colorScheme.primary),
           const SizedBox(height: 24),
-          Text(
-            'メールを確認してください',
-            style: theme.textTheme.headlineSmall,
-          ),
+          Text('メールを確認してください',
+              style: theme.textTheme.headlineSmall),
           const SizedBox(height: 12),
           Text(
             '${_emailController.text} にログインリンクを送信しました。\nメール内のリンクをタップしてログインしてください。',
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+            style:
+                theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
           ),
           const SizedBox(height: 32),
           TextButton(
-            onPressed: () => setState(() => _isSent = false),
-            child: const Text('別のメールアドレスで試す'),
+            onPressed: () =>
+                setState(() { _magicLinkSent = false; _useMagicLink = false; }),
+            child: const Text('パスワードでログイン'),
           ),
         ],
       ),
@@ -84,22 +112,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Widget _buildFormView(ThemeData theme) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const SizedBox(height: 60),
         Icon(Icons.lock_outline, size: 64, color: theme.colorScheme.primary),
         const SizedBox(height: 24),
-        Text(
-          'ZAIQUESTにログイン',
-          style: theme.textTheme.headlineSmall,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'メールアドレスを入力すると、ログインリンクが届きます。',
-          style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
-          textAlign: TextAlign.center,
-        ),
+        Text('ZAIQUESTにログイン',
+            style: theme.textTheme.headlineSmall,
+            textAlign: TextAlign.center),
         const SizedBox(height: 32),
         TextField(
           controller: _emailController,
@@ -109,18 +129,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             labelText: 'メールアドレス',
             prefixIcon: Icon(Icons.email_outlined),
           ),
-          onSubmitted: (_) => _sendMagicLink(),
+          onSubmitted: (_) =>
+              _useMagicLink ? _sendMagicLink() : _signInWithPassword(),
         ),
-        const SizedBox(height: 16),
+        if (!_useMagicLink) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'パスワード',
+              prefixIcon: Icon(Icons.lock_outlined),
+            ),
+            onSubmitted: (_) => _signInWithPassword(),
+          ),
+        ],
+        const SizedBox(height: 20),
         FilledButton(
-          onPressed: _isSending ? null : _sendMagicLink,
-          child: _isSending
+          onPressed: _isLoading
+              ? null
+              : (_useMagicLink ? _sendMagicLink : _signInWithPassword),
+          child: _isLoading
               ? const SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('マジックリンクを送信'),
+              : Text(_useMagicLink ? 'マジックリンクを送信' : 'ログイン'),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => setState(() => _useMagicLink = !_useMagicLink),
+          child: Text(_useMagicLink
+              ? 'パスワードでログイン'
+              : 'マジックリンクでログイン'),
         ),
       ],
     );

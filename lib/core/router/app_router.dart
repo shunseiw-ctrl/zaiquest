@@ -13,10 +13,10 @@ part 'app_router.g.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 
-@riverpod
+@Riverpod(keepAlive: true)
 GoRouter appRouter(AppRouterRef ref) {
   final authState = ValueNotifier<User?>(ref.read(authNotifierProvider));
-  ref.listen(authNotifierProvider, (_, next) {
+  ref.listen<User?>(authNotifierProvider, (_, next) {
     authState.value = next;
   });
 

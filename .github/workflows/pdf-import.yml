@@ -1,0 +1,59 @@
+name: PDF Import
+
+on:
+  workflow_dispatch:
+    inputs:
+      pdf_url:
+        description: 'URL to PDF file (Supabase Storage URL)'
+        required: true
+        type: string
+      filename:
+        description: 'Original filename for tracking'
+        required: true
+        type: string
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: scraper/package-lock.json
+
+      - name: Install dependencies
+        working-directory: scraper
+        run: npm ci
+
+      - name: Download and parse PDF
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          PDF_URL: ${{ github.event.inputs.pdf_url }}
+          PDF_FILENAME: ${{ github.event.inputs.filename }}
+        run: |
+          node -e "
+          import('dotenv/config');
+          import('./dist/sources/mitsubishi-pdf.js').then(async (mod) => {
+            const response = await fetch(process.env.PDF_URL);
+            const buffer = await response.arrayBuffer();
+            const base64 = Buffer.from(buffer).toString('base64');
+            const result = await mod.parseMitsubishiPdf(base64, process.env.PDF_FILENAME);
+            console.log('Products found:', result.products.length);
+            console.log('Errors:', result.errors);
+            if (result.products.length > 0) {
+              const { uploadProducts } = await import('./dist/uploader.js');
+              const { normalize } = await import('./dist/normalizer.js');
+              const normalized = result.products.map(normalize);
+              const uploadResult = await uploadProducts(normalized);
+              console.log('Upload result:', uploadResult);
+            }
+          });
+          "

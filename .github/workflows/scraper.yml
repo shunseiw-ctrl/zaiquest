@@ -1,0 +1,50 @@
+name: Scraper
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Every Monday at 3:00 UTC
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Source to scrape'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - taroto
+          - panasonic
+          - toshiba
+          - mitsubishi-wink
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: scraper/package-lock.json
+
+      - name: Install dependencies
+        working-directory: scraper
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: ${{ github.event.inputs.source == 'mitsubishi-wink' || github.event.inputs.source == 'all' }}
+        working-directory: scraper
+        run: npx playwright install chromium
+
+      - name: Run scraper
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          SOURCE="${{ github.event.inputs.source || 'all' }}"
+          npm run scrape:${SOURCE}

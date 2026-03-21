@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/entities/product.dart';
 import '../../domain/entities/search_filter.dart';
 import '../../domain/repositories/product_repository.dart';
@@ -49,7 +51,9 @@ class ProductRepositoryImpl implements ProductRepository {
       await _local.setLastSyncedAt(DateTime.now());
 
       return products;
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[ProductRepo] Remote search failed: $e');
+      debugPrint('[ProductRepo] Stack trace: $st');
       // Offline fallback: return local results
       return localResults.map(ProductMapper.fromCachedProduct).toList();
     }
@@ -65,7 +69,9 @@ class ProductRepositoryImpl implements ProductRepository {
             .upsertProducts([ProductMapper.toCachedCompanion(product)]);
         return product;
       }
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[ProductRepo] getById failed: $e');
+      debugPrint('[ProductRepo] Stack trace: $st');
       // Offline fallback
     }
 

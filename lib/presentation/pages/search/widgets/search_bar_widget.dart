@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,9 +21,11 @@ class SearchBarWidget extends ConsumerStatefulWidget {
 
 class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
   final _controller = TextEditingController();
+  Timer? _debounceTimer;
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -40,6 +44,7 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
                   ? IconButton(
                       icon: const Icon(Icons.clear),
                       onPressed: () {
+                        _debounceTimer?.cancel();
                         _controller.clear();
                         ref
                             .read(searchFilterNotifierProvider.notifier)
@@ -50,8 +55,15 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
             ),
             onChanged: (value) {
               setState(() {}); // Update clear button visibility
+              _debounceTimer?.cancel();
+              _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+                ref
+                    .read(searchFilterNotifierProvider.notifier)
+                    .updateQuery(value);
+              });
             },
             onSubmitted: (value) {
+              _debounceTimer?.cancel();
               ref
                   .read(searchFilterNotifierProvider.notifier)
                   .updateQuery(value);

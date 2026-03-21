@@ -1,7 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../providers/auth_provider.dart';
+
+/// Map Supabase auth exceptions to user-friendly Japanese messages.
+String _friendlyAuthError(Object error) {
+  final message = error.toString().toLowerCase();
+
+  if (error is AuthException) {
+    final msg = error.message.toLowerCase();
+    if (msg.contains('invalid login credentials')) {
+      return 'メールアドレスまたはパスワードが正しくありません';
+    }
+    if (msg.contains('email not confirmed')) {
+      return 'メールアドレスが確認されていません';
+    }
+    if (msg.contains('user not found')) {
+      return 'アカウントが見つかりません';
+    }
+    if (msg.contains('too many requests') || msg.contains('rate limit')) {
+      return 'リクエストが多すぎます。しばらくしてから再度お試しください';
+    }
+  }
+
+  if (message.contains('socket') || message.contains('network') ||
+      message.contains('connection') || message.contains('timeout')) {
+    return 'ネットワークに接続できません';
+  }
+
+  return 'ログインに失敗しました。しばらくしてから再度お試しください';
+}
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -27,7 +56,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Future<void> _signInWithPassword() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
-    if (email.isEmpty || password.isEmpty) return;
+
+    if (email.isEmpty) {
+      _showError('メールアドレスを入力してください');
+      return;
+    }
+    if (password.isEmpty) {
+      _showError('パスワードを入力してください');
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
@@ -36,9 +73,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           .signInWithPassword(email, password);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ログインエラー: $e')),
-        );
+        _showError(_friendlyAuthError(e));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -47,7 +82,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _sendMagicLink() async {
     final email = _emailController.text.trim();
-    if (email.isEmpty) return;
+    if (email.isEmpty) {
+      _showError('メールアドレスを入力してください');
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
@@ -57,13 +95,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       setState(() => _magicLinkSent = true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('エラー: $e')),
-        );
+        _showError(_friendlyAuthError(e));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -38,35 +39,37 @@ ProductRepository productRepository(ProductRepositoryRef ref) {
 // Search filter state
 @riverpod
 class SearchFilterNotifier extends _$SearchFilterNotifier {
+  bool _isLoadingMore = false;
+
   @override
   SearchFilter build() => const SearchFilter();
 
   void updateQuery(String query) {
-    state = state.copyWith(query: query);
+    state = state.copyWith(query: query, offset: 0);
   }
 
   void updateWidthRange(double? min, double? max) {
-    state = state.copyWith(widthMin: min, widthMax: max);
+    state = state.copyWith(widthMin: min, widthMax: max, offset: 0);
   }
 
   void updateHeightRange(double? min, double? max) {
-    state = state.copyWith(heightMin: min, heightMax: max);
+    state = state.copyWith(heightMin: min, heightMax: max, offset: 0);
   }
 
   void updateDepthRange(double? min, double? max) {
-    state = state.copyWith(depthMin: min, depthMax: max);
+    state = state.copyWith(depthMin: min, depthMax: max, offset: 0);
   }
 
   void updatePipeDiameterRange(double? min, double? max) {
-    state = state.copyWith(pipeDiameterMin: min, pipeDiameterMax: max);
+    state = state.copyWith(pipeDiameterMin: min, pipeDiameterMax: max, offset: 0);
   }
 
   void updateVoltage(int? voltage) {
-    state = state.copyWith(voltage: voltage);
+    state = state.copyWith(voltage: voltage, offset: 0);
   }
 
   void updatePriceRange(int? min, int? max) {
-    state = state.copyWith(priceMin: min, priceMax: max);
+    state = state.copyWith(priceMin: min, priceMax: max, offset: 0);
   }
 
   void toggleManufacturer(String id) {
@@ -76,15 +79,18 @@ class SearchFilterNotifier extends _$SearchFilterNotifier {
     } else {
       ids.add(id);
     }
-    state = state.copyWith(manufacturerIds: ids);
+    state = state.copyWith(manufacturerIds: ids, offset: 0);
   }
 
   void updateCategory(String? categoryId) {
-    state = state.copyWith(categoryId: categoryId);
+    state = state.copyWith(categoryId: categoryId, offset: 0);
   }
 
   void toggleDiscontinued() {
-    state = state.copyWith(includeDiscontinued: !state.includeDiscontinued);
+    state = state.copyWith(
+      includeDiscontinued: !state.includeDiscontinued,
+      offset: 0,
+    );
   }
 
   void resetFilters() {
@@ -92,16 +98,49 @@ class SearchFilterNotifier extends _$SearchFilterNotifier {
   }
 
   void loadMore() {
+    if (_isLoadingMore) return;
+    _isLoadingMore = true;
     state = state.copyWith(offset: state.offset + state.limit);
+    _isLoadingMore = false;
   }
 }
 
-// Search results
+/// Accumulated search results with pagination support.
+/// Resets list when offset==0 (filter change), appends when offset>0 (loadMore).
+@riverpod
+class SearchResultList extends _$SearchResultList {
+  @override
+  Future<List<Product>> build() async {
+    final filter = ref.watch(searchFilterNotifierProvider);
+    final repository = ref.watch(productRepositoryProvider);
+    final newResults = await repository.search(filter);
+
+    if (filter.offset == 0) {
+      // Fresh search: replace entire list
+      return newResults;
+    }
+
+    // Load more: append to existing list
+    final previous = state.valueOrNull ?? [];
+    return [...previous, ...newResults];
+  }
+}
+
+/// Whether there are more results to load.
+@riverpod
+bool hasMoreResults(HasMoreResultsRef ref) {
+  final filter = ref.watch(searchFilterNotifierProvider);
+  final results = ref.watch(searchResultListProvider).valueOrNull;
+  if (results == null) return true;
+  // If we got fewer results than expected for the current page, no more data
+  final expectedTotal = filter.offset + filter.limit;
+  return results.length >= expectedTotal;
+}
+
+// Keep searchResultsProvider for backward compatibility
 @riverpod
 Future<List<Product>> searchResults(SearchResultsRef ref) async {
-  final filter = ref.watch(searchFilterNotifierProvider);
-  final repository = ref.watch(productRepositoryProvider);
-  return repository.search(filter);
+  return ref.watch(searchResultListProvider.future);
 }
 
 // Single product detail

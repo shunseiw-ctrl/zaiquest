@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { scrapeTaroto } from './sources/taroto.js';
+import { scrapeTaroto, scrapeDetailPages } from './sources/taroto.js';
 import { scrapePanasonic } from './sources/panasonic.js';
 import { scrapeToshiba } from './sources/toshiba.js';
 import { scrapeMitsubishiWink } from './sources/mitsubishi-wink.js';
@@ -48,6 +48,20 @@ async function scrapeSource(source: SourceName): Promise<{
 
 async function main() {
   const args = process.argv.slice(2);
+
+  // Detail mode: scrape individual product pages for spec data
+  const detailMode = args.includes('--detail');
+  if (detailMode) {
+    console.log('[ZAIQUEST Scraper] Running detail page scraper...');
+    const { updated, errors: detailErrors } = await scrapeDetailPages();
+    console.log(`[ZAIQUEST Scraper] Detail scrape complete: ${updated} products updated`);
+    if (detailErrors.length > 0) {
+      console.warn(`[ZAIQUEST Scraper] Detail errors: ${detailErrors.length}`);
+      detailErrors.forEach((e) => console.warn(`  - ${e}`));
+    }
+    return; // Don't run normal scraping
+  }
+
   const sourceIdx = args.indexOf('--source');
   const source: SourceName =
     sourceIdx >= 0 && args[sourceIdx + 1]

@@ -59,7 +59,26 @@ final productRepositoryProvider = Provider<ProductRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ProductRepositoryRef = ProviderRef<ProductRepository>;
-String _$searchResultsHash() => r'bc6638f1056d35aaa672f725a1fee50057f38dac';
+String _$hasMoreResultsHash() => r'3aea6112430296a5619c987930df02e79211de21';
+
+/// Whether there are more results to load.
+///
+/// Copied from [hasMoreResults].
+@ProviderFor(hasMoreResults)
+final hasMoreResultsProvider = AutoDisposeProvider<bool>.internal(
+  hasMoreResults,
+  name: r'hasMoreResultsProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$hasMoreResultsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef HasMoreResultsRef = AutoDisposeProviderRef<bool>;
+String _$searchResultsHash() => r'7a7b4733d2a199e92466c873e3f7f61c01c5118f';
 
 /// See also [searchResults].
 @ProviderFor(searchResults)
@@ -256,7 +275,7 @@ final categoriesProvider =
 typedef CategoriesRef =
     AutoDisposeFutureProviderRef<List<Map<String, dynamic>>>;
 String _$searchFilterNotifierHash() =>
-    r'1feffc927721b5f477254957c37da4c696fa2d2c';
+    r'e8bd26f6a3b3a61b57481e6e3f6f5cd751e2450c';
 
 /// See also [SearchFilterNotifier].
 @ProviderFor(SearchFilterNotifier)
@@ -272,5 +291,24 @@ final searchFilterNotifierProvider =
     );
 
 typedef _$SearchFilterNotifier = AutoDisposeNotifier<SearchFilter>;
+String _$searchResultListHash() => r'c1dc92d07b8a934b26881c3fc51b4c9a42a301ce';
+
+/// Accumulated search results with pagination support.
+/// Resets list when offset==0 (filter change), appends when offset>0 (loadMore).
+///
+/// Copied from [SearchResultList].
+@ProviderFor(SearchResultList)
+final searchResultListProvider =
+    AutoDisposeAsyncNotifierProvider<SearchResultList, List<Product>>.internal(
+      SearchResultList.new,
+      name: r'searchResultListProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$searchResultListHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
+
+typedef _$SearchResultList = AutoDisposeAsyncNotifier<List<Product>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

@@ -17,10 +17,36 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   bool _showFilters = false;
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      final hasMore = ref.read(hasMoreResultsProvider);
+      final isLoading = ref.read(searchResultListProvider).isLoading;
+      if (hasMore && !isLoading) {
+        ref.read(searchFilterNotifierProvider.notifier).loadMore();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final searchResults = ref.watch(searchResultsProvider);
+    final searchResults = ref.watch(searchResultListProvider);
+    final hasMore = ref.watch(hasMoreResultsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -70,9 +96,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 }
 
                 return ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: products.length,
+                  itemCount: products.length + (hasMore ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (index >= products.length) {
+                      // Loading indicator at the bottom
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+
                     return ProductCard(
                       product: products[index],
                       onTap: () =>
@@ -95,7 +130,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () =>
-                          ref.invalidate(searchResultsProvider),
+                          ref.invalidate(searchResultListProvider),
                       child: const Text('再試行'),
                     ),
                   ],

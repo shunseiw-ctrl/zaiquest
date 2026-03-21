@@ -62,7 +62,7 @@ export interface TarotoScrapingResult {
 }
 
 /** Scrape all products from a single category listing page */
-function parseListingPage(
+export function parseListingPage(
   html: string,
   categorySlug: string,
 ): RawProduct[] {
@@ -210,4 +210,172 @@ export async function scrapeTaroto(): Promise<TarotoScrapingResult> {
 
   console.log(`[Taroto] Total unique products: ${allProducts.length}`);
   return { products: allProducts, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Detail page scraping (spec extraction from individual product pages)
+// ---------------------------------------------------------------------------
+
+export interface DetailSpec {
+  width_mm: number | null;
+  height_mm: number | null;
+  depth_mm: number | null;
+  pipe_diameter: number | null;
+  voltage: string | null;
+  airflow: string | null;
+  noise_level: string | null;
+  power_consumption: string | null;
+  list_price: string | null;
+}
+
+/** Parse detail page HTML to extract spec data from the product spec table */
+export function parseDetailPage(html: string): DetailSpec {
+  const $ = cheerio.load(html);
+  const spec: DetailSpec = {
+    width_mm: null, height_mm: null, depth_mm: null,
+    pipe_diameter: null, voltage: null, airflow: null,
+    noise_level: null, power_consumption: null, list_price: null,
+  };
+
+  // Parse spec table rows (th/td pairs)
+  $('table tr').each((_, row) => {
+    const th = $(row).find('th').first().text().trim();
+    const td = $(row).find('td').first().text().trim();
+    if (!th || !td) return;
+
+    const thLower = th.toLowerCase();
+
+    // Dimensions: look for "外形寸法" or individual dimension labels
+    if (thLower.includes('外形寸法') || thLower.includes('寸法')) {
+      // Try to parse WxHxD pattern like "285×285×107mm"
+      const dimMatch = td.match(/(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)/);
+      if (dimMatch) {
+        spec.width_mm = parseInt(dimMatch[1], 10);
+        spec.height_mm = parseInt(dimMatch[2], 10);
+        spec.depth_mm = parseInt(dimMatch[3], 10);
+      }
+    }
+
+    // Pipe diameter
+    if (thLower.includes('接続') || thLower.includes('ダクト径') || thLower.includes('パイプ径')) {
+      const pipeMatch = td.match(/[φΦ]?\s*(\d+)/);
+      if (pipeMatch) {
+        spec.pipe_diameter = parseInt(pipeMatch[1], 10);
+      }
+    }
+
+    // Voltage
+    if (thLower.includes('電源') || thLower.includes('電圧')) {
+      spec.voltage = td;
+    }
+
+    // Airflow
+    if (thLower.includes('風量')) {
+      spec.airflow = td;
+    }
+
+    // Noise level
+    if (thLower.includes('騒音')) {
+      spec.noise_level = td;
+    }
+
+    // Power consumption
+    if (thLower.includes('消費電力')) {
+      spec.power_consumption = td;
+    }
+
+    // List price (定価 or メーカー希望小売価格)
+    if (thLower.includes('定価') || thLower.includes('希望小売')) {
+      spec.list_price = td;
+    }
+  });
+
+  return spec;
+}
+
+/** Scrape detail pages for existing taroto products to fill in spec data */
+export async function scrapeDetailPages(): Promise<{
+  updated: number;
+  errors: string[];
+}> {
+  // Import Supabase client from uploader
+  const { createClient } = await import('@supabase/supabase-js');
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  }
+  const supabase = createClient(url, key);
+
+  // Fetch all taroto product URLs
+  const { data: products, error: fetchError } = await supabase
+    .from('products')
+    .select('id, model_number, product_url')
+    .eq('source', 'taroto')
+    .not('product_url', 'is', null);
+
+  if (fetchError || !products) {
+    throw new Error(`Failed to fetch products: ${fetchError?.message}`);
+  }
+
+  console.log(`[Taroto Detail] Found ${products.length} products to process`);
+  const errors: string[] = [];
+  let updated = 0;
+
+  for (let i = 0; i < products.length; i++) {
+    const product = products[i];
+    try {
+      console.log(`[Taroto Detail] (${i + 1}/${products.length}) ${product.model_number}`);
+      const html = await fetchPage(product.product_url);
+      const spec = parseDetailPage(html);
+
+      // Build update object with only non-null values
+      const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (spec.width_mm != null) updateData.width_mm = spec.width_mm;
+      if (spec.height_mm != null) updateData.height_mm = spec.height_mm;
+      if (spec.depth_mm != null) updateData.depth_mm = spec.depth_mm;
+      if (spec.pipe_diameter != null) updateData.pipe_diameter = spec.pipe_diameter;
+      if (spec.voltage != null) {
+        // Normalize voltage
+        if (spec.voltage.includes('200')) updateData.voltage = 200;
+        else if (spec.voltage.includes('100')) updateData.voltage = 100;
+      }
+      if (spec.airflow != null) {
+        const airflowMatch = spec.airflow.match(/(\d+(\.\d+)?)/);
+        if (airflowMatch) updateData.airflow = parseFloat(airflowMatch[1]);
+      }
+      if (spec.noise_level != null) {
+        const noiseMatch = spec.noise_level.match(/(\d+(\.\d+)?)/);
+        if (noiseMatch) updateData.noise_level = parseFloat(noiseMatch[1]);
+      }
+      if (spec.power_consumption != null) {
+        const powerMatch = spec.power_consumption.match(/(\d+(\.\d+)?)/);
+        if (powerMatch) updateData.power_consumption = parseFloat(powerMatch[1]);
+      }
+      if (spec.list_price != null) {
+        const priceMatch = spec.list_price.replace(/[,、]/g, '').match(/(\d+)/);
+        if (priceMatch) updateData.list_price = parseInt(priceMatch[1], 10);
+      }
+
+      // Only update if we found any spec data
+      if (Object.keys(updateData).length > 1) {
+        const { error: updateError } = await supabase
+          .from('products')
+          .update(updateData)
+          .eq('id', product.id);
+
+        if (updateError) {
+          errors.push(`Update failed for ${product.model_number}: ${updateError.message}`);
+        } else {
+          updated++;
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Detail fetch failed for ${product.model_number}: ${msg}`);
+    }
+  }
+
+  console.log(`[Taroto Detail] Updated ${updated}/${products.length} products`);
+  return { updated, errors };
 }

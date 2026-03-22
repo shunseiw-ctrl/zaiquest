@@ -13,6 +13,9 @@
     "scrape:mitsubishi-wink": "tsx src/index.ts --source mitsubishi-wink",
     "scrape:all": "tsx src/index.ts --source all",
     "scrape:taroto:detail": "tsx src/index.ts --detail",
+    "scrape:toshiba:detail": "tsx src/index.ts --detail --source toshiba",
+    "scrape:panasonic:detail": "tsx src/index.ts --detail --source panasonic",
+    "merge:specs": "tsx src/index.ts --merge",
     "test": "vitest run"
   },
   "dependencies": {

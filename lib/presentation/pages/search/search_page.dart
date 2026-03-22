@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/auth_provider.dart';
+import '../../providers/comparison_providers.dart';
 import '../../providers/product_providers.dart';
+import 'widgets/comparison_bottom_bar.dart';
 import 'widgets/search_bar_widget.dart';
 import 'widgets/filter_panel.dart';
 import 'widgets/product_card.dart';
@@ -47,6 +49,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final searchResults = ref.watch(searchResultListProvider);
     final hasMore = ref.watch(hasMoreResultsProvider);
+    final comparisonSelection = ref.watch(comparisonSelectionProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -111,10 +114,31 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       );
                     }
 
+                    final product = products[index];
+                    final isSelected = ref
+                        .read(comparisonSelectionProvider.notifier)
+                        .isSelected(product.id);
+
                     return ProductCard(
-                      product: products[index],
-                      onTap: () =>
-                          context.push('/product/${products[index].id}'),
+                      product: product,
+                      onTap: () => context.push('/product/${product.id}'),
+                      isSelectedForComparison: isSelected,
+                      onComparisonToggle: (_) {
+                        final notifier =
+                            ref.read(comparisonSelectionProvider.notifier);
+                        if (!notifier.isSelected(product.id) &&
+                            comparisonSelection.length >=
+                                ComparisonSelection.maxItems) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('比較は最大4件までです'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                          return;
+                        }
+                        notifier.toggle(product);
+                      },
                     );
                   },
                 );
@@ -143,6 +167,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         ],
       ),
+      bottomNavigationBar: comparisonSelection.isNotEmpty
+          ? ComparisonBottomBar(
+              selectedCount: comparisonSelection.length,
+              onClear: () =>
+                  ref.read(comparisonSelectionProvider.notifier).clear(),
+              onCompare: () => context.push('/compare'),
+            )
+          : null,
     );
   }
 

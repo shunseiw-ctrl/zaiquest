@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import { scrapeTaroto, scrapeDetailPages } from './sources/taroto.js';
-import { scrapePanasonic } from './sources/panasonic.js';
-import { scrapeToshiba } from './sources/toshiba.js';
+import { scrapePanasonic, scrapePanasonicDetailPages } from './sources/panasonic.js';
+import { scrapeToshiba, scrapeToshibaDetailPages } from './sources/toshiba.js';
 import { scrapeMitsubishiWink } from './sources/mitsubishi-wink.js';
+import { crossReferenceSpecs } from './cross-reference.js';
 import { normalize, RawProduct } from './normalizer.js';
 import { uploadProducts } from './uploader.js';
 
 type SourceName = 'taroto' | 'panasonic' | 'toshiba' | 'mitsubishi-wink' | 'all';
+type DetailSourceName = 'taroto' | 'toshiba' | 'panasonic';
 
 async function scrapeSource(source: SourceName): Promise<{
   products: RawProduct[];
@@ -49,17 +51,49 @@ async function scrapeSource(source: SourceName): Promise<{
 async function main() {
   const args = process.argv.slice(2);
 
+  // Merge mode: cross-reference specs between sources
+  const mergeMode = args.includes('--merge');
+  if (mergeMode) {
+    console.log('[ZAIQUEST Scraper] Running cross-reference merge...');
+    const { merged, errors: mergeErrors } = await crossReferenceSpecs();
+    console.log(`[ZAIQUEST Scraper] Cross-reference complete: ${merged} products merged`);
+    if (mergeErrors.length > 0) {
+      console.warn(`[ZAIQUEST Scraper] Merge errors: ${mergeErrors.length}`);
+      mergeErrors.forEach((e) => console.warn(`  - ${e}`));
+    }
+    return;
+  }
+
   // Detail mode: scrape individual product pages for spec data
   const detailMode = args.includes('--detail');
   if (detailMode) {
-    console.log('[ZAIQUEST Scraper] Running detail page scraper...');
-    const { updated, errors: detailErrors } = await scrapeDetailPages();
-    console.log(`[ZAIQUEST Scraper] Detail scrape complete: ${updated} products updated`);
-    if (detailErrors.length > 0) {
-      console.warn(`[ZAIQUEST Scraper] Detail errors: ${detailErrors.length}`);
-      detailErrors.forEach((e) => console.warn(`  - ${e}`));
+    const sourceIdx = args.indexOf('--source');
+    const detailSource: DetailSourceName =
+      sourceIdx >= 0 && args[sourceIdx + 1]
+        ? (args[sourceIdx + 1] as DetailSourceName)
+        : 'taroto';
+
+    console.log(`[ZAIQUEST Scraper] Running detail page scraper for ${detailSource}...`);
+    let result: { updated: number; errors: string[] };
+
+    switch (detailSource) {
+      case 'taroto':
+        result = await scrapeDetailPages();
+        break;
+      case 'toshiba':
+        result = await scrapeToshibaDetailPages();
+        break;
+      case 'panasonic':
+        result = await scrapePanasonicDetailPages();
+        break;
     }
-    return; // Don't run normal scraping
+
+    console.log(`[ZAIQUEST Scraper] Detail scrape complete: ${result.updated} products updated`);
+    if (result.errors.length > 0) {
+      console.warn(`[ZAIQUEST Scraper] Detail errors: ${result.errors.length}`);
+      result.errors.forEach((e) => console.warn(`  - ${e}`));
+    }
+    return;
   }
 
   const sourceIdx = args.indexOf('--source');

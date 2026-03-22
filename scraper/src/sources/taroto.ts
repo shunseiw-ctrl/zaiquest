@@ -1,5 +1,9 @@
 import * as cheerio from 'cheerio';
 import { RawProduct } from '../normalizer.js';
+import { DetailSpec } from '../types.js';
+import { runDetailScraper } from '../detail-scraper-utils.js';
+
+export type { DetailSpec };
 
 const BASE_URL = 'https://www.taroto.jp';
 const DELAY_MS = 2000; // 1req/2sec to respect server
@@ -216,17 +220,6 @@ export async function scrapeTaroto(): Promise<TarotoScrapingResult> {
 // Detail page scraping (spec extraction from individual product pages)
 // ---------------------------------------------------------------------------
 
-export interface DetailSpec {
-  width_mm: number | null;
-  height_mm: number | null;
-  depth_mm: number | null;
-  pipe_diameter: number | null;
-  voltage: string | null;
-  airflow: string | null;
-  noise_level: string | null;
-  power_consumption: string | null;
-  list_price: string | null;
-}
 
 /** Parse detail page HTML to extract spec data from table, description text, and price element */
 export function parseDetailPage(html: string): DetailSpec {
@@ -334,88 +327,9 @@ export function parseDetailPage(html: string): DetailSpec {
 }
 
 /** Scrape detail pages for existing taroto products to fill in spec data */
-export async function scrapeDetailPages(): Promise<{
-  updated: number;
-  errors: string[];
-}> {
-  // Import Supabase client from uploader
-  const { createClient } = await import('@supabase/supabase-js');
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
-  }
-  const supabase = createClient(url, key);
-
-  // Fetch all taroto product URLs
-  const { data: products, error: fetchError } = await supabase
-    .from('products')
-    .select('id, model_number, product_url')
-    .eq('source', 'taroto')
-    .not('product_url', 'is', null);
-
-  if (fetchError || !products) {
-    throw new Error(`Failed to fetch products: ${fetchError?.message}`);
-  }
-
-  console.log(`[Taroto Detail] Found ${products.length} products to process`);
-  const errors: string[] = [];
-  let updated = 0;
-
-  for (let i = 0; i < products.length; i++) {
-    const product = products[i];
-    try {
-      console.log(`[Taroto Detail] (${i + 1}/${products.length}) ${product.model_number}`);
-      const html = await fetchPage(product.product_url);
-      const spec = parseDetailPage(html);
-
-      // Build update object with only non-null values
-      const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (spec.width_mm != null) updateData.width_mm = spec.width_mm;
-      if (spec.height_mm != null) updateData.height_mm = spec.height_mm;
-      if (spec.depth_mm != null) updateData.depth_mm = spec.depth_mm;
-      if (spec.pipe_diameter != null) updateData.pipe_diameter = spec.pipe_diameter;
-      if (spec.voltage != null) {
-        // Normalize voltage
-        if (spec.voltage.includes('200')) updateData.voltage = 200;
-        else if (spec.voltage.includes('100')) updateData.voltage = 100;
-      }
-      if (spec.airflow != null) {
-        const airflowMatch = spec.airflow.match(/(\d+(\.\d+)?)/);
-        if (airflowMatch) updateData.airflow = parseFloat(airflowMatch[1]);
-      }
-      if (spec.noise_level != null) {
-        const noiseMatch = spec.noise_level.match(/(\d+(\.\d+)?)/);
-        if (noiseMatch) updateData.noise_level = parseFloat(noiseMatch[1]);
-      }
-      if (spec.power_consumption != null) {
-        const powerMatch = spec.power_consumption.match(/(\d+(\.\d+)?)/);
-        if (powerMatch) updateData.power_consumption = parseFloat(powerMatch[1]);
-      }
-      if (spec.list_price != null) {
-        const priceMatch = spec.list_price.replace(/[,、]/g, '').match(/(\d+)/);
-        if (priceMatch) updateData.list_price = parseInt(priceMatch[1], 10);
-      }
-
-      // Only update if we found any spec data
-      if (Object.keys(updateData).length > 1) {
-        const { error: updateError } = await supabase
-          .from('products')
-          .update(updateData)
-          .eq('id', product.id);
-
-        if (updateError) {
-          errors.push(`Update failed for ${product.model_number}: ${updateError.message}`);
-        } else {
-          updated++;
-        }
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`Detail fetch failed for ${product.model_number}: ${msg}`);
-    }
-  }
-
-  console.log(`[Taroto Detail] Updated ${updated}/${products.length} products`);
-  return { updated, errors };
+export async function scrapeDetailPages(): Promise<{ updated: number; errors: string[] }> {
+  return runDetailScraper({
+    source: 'taroto',
+    parser: parseDetailPage,
+  });
 }

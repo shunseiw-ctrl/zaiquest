@@ -6,11 +6,15 @@ import '../../../../domain/entities/product.dart';
 class ProductCard extends StatelessWidget {
   final Product product;
   final VoidCallback onTap;
+  final bool? isSelectedForComparison;
+  final ValueChanged<bool>? onComparisonToggle;
 
   const ProductCard({
     super.key,
     required this.product,
     required this.onTap,
+    this.isSelectedForComparison,
+    this.onComparisonToggle,
   });
 
   @override
@@ -19,12 +23,14 @@ class ProductCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
+      child: Stack(
+        children: [
+          InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Product image
@@ -192,7 +198,18 @@ class ProductCard extends StatelessWidget {
               ),
             ],
           ),
+          ),
         ),
+        if (isSelectedForComparison != null)
+          Positioned(
+            top: 4,
+            right: 4,
+            child: Checkbox(
+              value: isSelectedForComparison!,
+              onChanged: (v) => onComparisonToggle?.call(v ?? false),
+            ),
+          ),
+        ],
       ),
     );
   }

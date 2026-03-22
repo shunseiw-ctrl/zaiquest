@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../presentation/pages/auth/login_page.dart';
 import '../../presentation/pages/search/search_page.dart';
 import '../../presentation/pages/detail/product_detail_page.dart';
+import '../../presentation/pages/comparison/comparison_page.dart';
 import '../../presentation/pages/favorites/favorites_page.dart';
 import '../../presentation/providers/auth_provider.dart';
 
@@ -53,6 +54,10 @@ GoRouter appRouter(AppRouterRef ref) {
           final id = state.pathParameters['id']!;
           return ProductDetailPage(productId: id);
         },
+      ),
+      GoRoute(
+        path: '/compare',
+        builder: (context, state) => const ComparisonPage(),
       ),
       GoRoute(
         path: '/favorites',

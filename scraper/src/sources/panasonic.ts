@@ -1,5 +1,7 @@
 import * as cheerio from 'cheerio';
 import { RawProduct } from '../normalizer.js';
+import { DetailSpec } from '../types.js';
+import { runDetailScraper } from '../detail-scraper-utils.js';
 
 const BASE_URL = 'https://sumai.panasonic.jp';
 const DELAY_MS = 2000;
@@ -97,4 +99,73 @@ export async function scrapePanasonic(): Promise<PanasonicScrapingResult> {
   }
 
   return { products, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Detail page scraping (spec extraction from product pages)
+// ---------------------------------------------------------------------------
+
+/** Parse a Panasonic product detail page for specs */
+export function parsePanasonicDetailPage(html: string): DetailSpec {
+  const $ = cheerio.load(html);
+  const spec: DetailSpec = {
+    width_mm: null, height_mm: null, depth_mm: null,
+    pipe_diameter: null, voltage: null, airflow: null,
+    noise_level: null, power_consumption: null, list_price: null,
+  };
+
+  // Panasonic uses specification tables with th/td
+  $('table tr, table th').closest('tr').each((_, row) => {
+    const th = $(row).find('th').first().text().trim();
+    const td = $(row).find('td').first().text().trim();
+    if (!th || !td) return;
+
+    if (th.includes('外形寸法') || th.includes('寸法')) {
+      const dimMatch = td.match(/(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)/);
+      if (dimMatch) {
+        spec.width_mm = parseInt(dimMatch[1], 10);
+        spec.height_mm = parseInt(dimMatch[2], 10);
+        spec.depth_mm = parseInt(dimMatch[3], 10);
+      }
+    }
+    if (th.includes('接続') || th.includes('ダクト径') || th.includes('パイプ径')) {
+      const pipeMatch = td.match(/[φΦ]?\s*(\d+)/);
+      if (pipeMatch) spec.pipe_diameter = parseInt(pipeMatch[1], 10);
+    }
+    if (th.includes('電源') || th.includes('電圧')) spec.voltage = td;
+    if (th.includes('風量')) spec.airflow = td;
+    if (th.includes('騒音')) spec.noise_level = td;
+    if (th.includes('消費電力')) spec.power_consumption = td;
+    if (th.includes('定価') || th.includes('希望小売') || th.includes('価格')) spec.list_price = td;
+  });
+
+  // Check for spec list elements (.spec-list, .productSpec, etc.)
+  $('.spec-list li, .productSpec li, .specTable td').each((_, el) => {
+    const text = $(el).text().trim();
+    if (spec.voltage == null && (text.includes('電源') || text.includes('電圧'))) {
+      const match = text.match(/[：:]\s*(.+)/);
+      if (match) spec.voltage = match[1].trim();
+    }
+    if (spec.airflow == null && text.includes('風量')) {
+      const match = text.match(/[：:]\s*(.+)/);
+      if (match) spec.airflow = match[1].trim();
+    }
+  });
+
+  // Check price in body text
+  if (spec.list_price == null) {
+    const bodyText = $('body').text();
+    const priceMatch = bodyText.match(/希望小売価格[（(]税[抜込][)）][：:\s]*[￥¥]?\s*([\d,]+)/);
+    if (priceMatch) spec.list_price = priceMatch[1];
+  }
+
+  return spec;
+}
+
+/** Scrape Panasonic detail pages for spec data */
+export async function scrapePanasonicDetailPages(): Promise<{ updated: number; errors: string[] }> {
+  return runDetailScraper({
+    source: 'panasonic_biz',
+    parser: parsePanasonicDetailPage,
+  });
 }

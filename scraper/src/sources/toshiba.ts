@@ -1,5 +1,7 @@
 import * as cheerio from 'cheerio';
 import { RawProduct } from '../normalizer.js';
+import { DetailSpec } from '../types.js';
+import { runDetailScraper } from '../detail-scraper-utils.js';
 
 const BASE_URL = 'https://www.toshiba-carrier.co.jp';
 const DELAY_MS = 2000;
@@ -170,4 +172,76 @@ export async function scrapeToshiba(): Promise<ToshibaScrapingResult> {
 
   console.log(`[Toshiba] Total unique products: ${allProducts.length}`);
   return { products: allProducts, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Detail page scraping (spec extraction from category pages)
+// ---------------------------------------------------------------------------
+
+/** Parse Toshiba category page to extract specs for a specific model */
+export function parseToshibaDetailPage(html: string): DetailSpec {
+  const $ = cheerio.load(html);
+  const spec: DetailSpec = {
+    width_mm: null, height_mm: null, depth_mm: null,
+    pipe_diameter: null, voltage: null, airflow: null,
+    noise_level: null, power_consumption: null, list_price: null,
+  };
+
+  // Toshiba pages have spec tables within sections for each model
+  // Look for table rows with spec data
+  $('table tr').each((_, row) => {
+    const th = $(row).find('th').first().text().trim();
+    const td = $(row).find('td').first().text().trim();
+    if (!th || !td) return;
+
+    const thLower = th.toLowerCase();
+    if (thLower.includes('外形寸法') || thLower.includes('寸法')) {
+      const dimMatch = td.match(/(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)/);
+      if (dimMatch) {
+        spec.width_mm = parseInt(dimMatch[1], 10);
+        spec.height_mm = parseInt(dimMatch[2], 10);
+        spec.depth_mm = parseInt(dimMatch[3], 10);
+      }
+    }
+    if (thLower.includes('接続') || thLower.includes('ダクト径') || thLower.includes('パイプ径')) {
+      const pipeMatch = td.match(/[φΦ]?\s*(\d+)/);
+      if (pipeMatch) spec.pipe_diameter = parseInt(pipeMatch[1], 10);
+    }
+    if (thLower.includes('電源') || thLower.includes('電圧')) spec.voltage = td;
+    if (thLower.includes('風量')) spec.airflow = td;
+    if (thLower.includes('騒音')) spec.noise_level = td;
+    if (thLower.includes('消費電力')) spec.power_consumption = td;
+    if (thLower.includes('定価') || thLower.includes('希望小売') || thLower.includes('価格')) spec.list_price = td;
+  });
+
+  // Also check dl/dt/dd structures
+  $('dl').each((_, dl) => {
+    $(dl).find('dt').each((i, dt) => {
+      const label = $(dt).text().trim();
+      const value = $(dl).find('dd').eq(i).text().trim();
+      if (!label || !value) return;
+
+      if (label.includes('電源') && spec.voltage == null) spec.voltage = value;
+      if (label.includes('風量') && spec.airflow == null) spec.airflow = value;
+      if (label.includes('騒音') && spec.noise_level == null) spec.noise_level = value;
+      if (label.includes('消費電力') && spec.power_consumption == null) spec.power_consumption = value;
+    });
+  });
+
+  // Check for price in text (メーカー希望小売価格)
+  const bodyText = $('body').text();
+  if (spec.list_price == null) {
+    const priceMatch = bodyText.match(/希望小売価格[：:\s]*[￥¥]?\s*([\d,]+)/);
+    if (priceMatch) spec.list_price = priceMatch[1];
+  }
+
+  return spec;
+}
+
+/** Scrape Toshiba detail pages for spec data */
+export async function scrapeToshibaDetailPages(): Promise<{ updated: number; errors: string[] }> {
+  return runDetailScraper({
+    source: 'toshiba',
+    parser: parseToshibaDetailPage,
+  });
 }

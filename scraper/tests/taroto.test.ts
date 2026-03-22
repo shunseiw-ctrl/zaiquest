@@ -123,4 +123,130 @@ describe('taroto parseDetailPage', () => {
     expect(spec.height_mm).toBe(320);
     expect(spec.depth_mm).toBe(150);
   });
+
+  // --- Tests for taroto.jp actual HTML structure (unstructured text) ---
+
+  it('extracts pipe diameter from p.item-description text', () => {
+    const html = `
+      <html><body>
+        <p class="item-description">
+          ●接続パイプ径：φ100mm<br>
+          ●埋込寸法：260mm角<br>
+        </p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    expect(spec.pipe_diameter).toBe(100);
+  });
+
+  it('extracts list price from p.fixed-price', () => {
+    const html = `
+      <html><body>
+        <p class="fixed-price">希望小売価格：￥22,100（税抜）</p>
+        <p class="item-description">
+          ●接続ダクト：φ150mm<br>
+        </p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    expect(spec.list_price).toBe('￥22,100（税抜）');
+    expect(spec.pipe_diameter).toBe(150);
+  });
+
+  it('extracts square dimensions from description text', () => {
+    const html = `
+      <html><body>
+        <p class="item-description">
+          ●埋込寸法：260mm角<br>
+          ●接続パイプ径：φ100mm<br>
+        </p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    // 260mm角 → width=260, height=260
+    expect(spec.width_mm).toBe(260);
+    expect(spec.height_mm).toBe(260);
+  });
+
+  it('extracts WxH or WxHxD dimensions from description text', () => {
+    const html = `
+      <html><body>
+        <p class="item-description">
+          ●外形寸法：285×285×107mm<br>
+          ●接続ダクト：φ100<br>
+        </p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    expect(spec.width_mm).toBe(285);
+    expect(spec.height_mm).toBe(285);
+    expect(spec.depth_mm).toBe(107);
+    expect(spec.pipe_diameter).toBe(100);
+  });
+
+  it('extracts voltage from description text', () => {
+    const html = `
+      <html><body>
+        <p class="item-description">
+          ●電源：単相100V<br>
+        </p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    expect(spec.voltage).toBe('単相100V');
+  });
+
+  it('extracts airflow, noise, power from description text', () => {
+    const html = `
+      <html><body>
+        <p class="item-description">
+          ●風量：55m3/h<br>
+          ●騒音：26dB<br>
+          ●消費電力：3.7W<br>
+        </p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    expect(spec.airflow).toBe('55m3/h');
+    expect(spec.noise_level).toBe('26dB');
+    expect(spec.power_consumption).toBe('3.7W');
+  });
+
+  it('handles mixed format: table specs + description text + fixed-price', () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr><th>電源</th><td>三相200V</td></tr>
+        </table>
+        <p class="item-description">
+          ●接続パイプ径：φ150mm<br>
+          ●風量：120m3/h<br>
+        </p>
+        <p class="fixed-price">希望小売価格：￥45,000（税抜）</p>
+      </body></html>
+    `;
+
+    const spec = parseDetailPage(html);
+    // Table data takes priority for voltage
+    expect(spec.voltage).toBe('三相200V');
+    // Description data fills in the rest
+    expect(spec.pipe_diameter).toBe(150);
+    expect(spec.airflow).toBe('120m3/h');
+    expect(spec.list_price).toBe('￥45,000（税抜）');
+  });
+
+  it('returns nulls when no description or table exists', () => {
+    const html = `<html><body><p>Some other content</p></body></html>`;
+    const spec = parseDetailPage(html);
+    expect(spec.width_mm).toBeNull();
+    expect(spec.pipe_diameter).toBeNull();
+    expect(spec.voltage).toBeNull();
+    expect(spec.list_price).toBeNull();
+  });
 });

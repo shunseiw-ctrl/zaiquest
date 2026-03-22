@@ -228,7 +228,7 @@ export interface DetailSpec {
   list_price: string | null;
 }
 
-/** Parse detail page HTML to extract spec data from the product spec table */
+/** Parse detail page HTML to extract spec data from table, description text, and price element */
 export function parseDetailPage(html: string): DetailSpec {
   const $ = cheerio.load(html);
   const spec: DetailSpec = {
@@ -237,7 +237,7 @@ export function parseDetailPage(html: string): DetailSpec {
     noise_level: null, power_consumption: null, list_price: null,
   };
 
-  // Parse spec table rows (th/td pairs)
+  // --- Source 1: Parse spec table rows (th/td pairs) ---
   $('table tr').each((_, row) => {
     const th = $(row).find('th').first().text().trim();
     const td = $(row).find('td').first().text().trim();
@@ -245,9 +245,7 @@ export function parseDetailPage(html: string): DetailSpec {
 
     const thLower = th.toLowerCase();
 
-    // Dimensions: look for "外形寸法" or individual dimension labels
     if (thLower.includes('外形寸法') || thLower.includes('寸法')) {
-      // Try to parse WxHxD pattern like "285×285×107mm"
       const dimMatch = td.match(/(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)/);
       if (dimMatch) {
         spec.width_mm = parseInt(dimMatch[1], 10);
@@ -255,40 +253,82 @@ export function parseDetailPage(html: string): DetailSpec {
         spec.depth_mm = parseInt(dimMatch[3], 10);
       }
     }
-
-    // Pipe diameter
     if (thLower.includes('接続') || thLower.includes('ダクト径') || thLower.includes('パイプ径')) {
       const pipeMatch = td.match(/[φΦ]?\s*(\d+)/);
-      if (pipeMatch) {
-        spec.pipe_diameter = parseInt(pipeMatch[1], 10);
+      if (pipeMatch) spec.pipe_diameter = parseInt(pipeMatch[1], 10);
+    }
+    if (thLower.includes('電源') || thLower.includes('電圧')) spec.voltage = td;
+    if (thLower.includes('風量')) spec.airflow = td;
+    if (thLower.includes('騒音')) spec.noise_level = td;
+    if (thLower.includes('消費電力')) spec.power_consumption = td;
+    if (thLower.includes('定価') || thLower.includes('希望小売')) spec.list_price = td;
+  });
+
+  // --- Source 2: Parse unstructured text from p.item-description ---
+  const descText = $('p.item-description').first().text();
+  if (descText) {
+    // Split by ● to get individual spec lines
+    const lines = descText.split(/[●・]/).map(l => l.trim()).filter(Boolean);
+
+    for (const line of lines) {
+      // Pipe diameter: φ100, φ150mm, Φ100
+      if (spec.pipe_diameter == null && (line.includes('接続') || line.includes('パイプ') || line.includes('ダクト'))) {
+        const pipeMatch = line.match(/[φΦ](\d+)/);
+        if (pipeMatch) spec.pipe_diameter = parseInt(pipeMatch[1], 10);
+      }
+
+      // Dimensions: WxHxD pattern like "285×285×107mm"
+      if (spec.width_mm == null && (line.includes('寸法') || line.includes('外形'))) {
+        const dimMatch = line.match(/(\d+)\s*[×xX]\s*(\d+)\s*[×xX]\s*(\d+)/);
+        if (dimMatch) {
+          spec.width_mm = parseInt(dimMatch[1], 10);
+          spec.height_mm = parseInt(dimMatch[2], 10);
+          spec.depth_mm = parseInt(dimMatch[3], 10);
+        } else {
+          // Square dimension: "260mm角"
+          const squareMatch = line.match(/(\d+)\s*mm角/);
+          if (squareMatch) {
+            spec.width_mm = parseInt(squareMatch[1], 10);
+            spec.height_mm = parseInt(squareMatch[1], 10);
+          }
+        }
+      }
+
+      // Voltage: 電源 or 電圧
+      if (spec.voltage == null && (line.includes('電源') || line.includes('電圧'))) {
+        const volMatch = line.match(/[：:]\s*(.+)/);
+        if (volMatch) spec.voltage = volMatch[1].trim();
+      }
+
+      // Airflow: 風量
+      if (spec.airflow == null && line.includes('風量')) {
+        const valMatch = line.match(/[：:]\s*(.+)/);
+        if (valMatch) spec.airflow = valMatch[1].trim();
+      }
+
+      // Noise level: 騒音
+      if (spec.noise_level == null && line.includes('騒音')) {
+        const valMatch = line.match(/[：:]\s*(.+)/);
+        if (valMatch) spec.noise_level = valMatch[1].trim();
+      }
+
+      // Power consumption: 消費電力
+      if (spec.power_consumption == null && line.includes('消費電力')) {
+        const valMatch = line.match(/[：:]\s*(.+)/);
+        if (valMatch) spec.power_consumption = valMatch[1].trim();
       }
     }
+  }
 
-    // Voltage
-    if (thLower.includes('電源') || thLower.includes('電圧')) {
-      spec.voltage = td;
+  // --- Source 3: Parse list price from p.fixed-price ---
+  if (spec.list_price == null) {
+    const priceText = $('p.fixed-price').first().text().trim();
+    if (priceText) {
+      // Extract price portion after colon: "希望小売価格：￥22,100（税抜）" → "￥22,100（税抜）"
+      const priceMatch = priceText.match(/[：:]\s*(.+)/);
+      if (priceMatch) spec.list_price = priceMatch[1].trim();
     }
-
-    // Airflow
-    if (thLower.includes('風量')) {
-      spec.airflow = td;
-    }
-
-    // Noise level
-    if (thLower.includes('騒音')) {
-      spec.noise_level = td;
-    }
-
-    // Power consumption
-    if (thLower.includes('消費電力')) {
-      spec.power_consumption = td;
-    }
-
-    // List price (定価 or メーカー希望小売価格)
-    if (thLower.includes('定価') || thLower.includes('希望小売')) {
-      spec.list_price = td;
-    }
-  });
+  }
 
   return spec;
 }

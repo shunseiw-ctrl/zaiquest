@@ -137,6 +137,24 @@ class ProductCard extends StatelessWidget {
                           ),
                       ],
                     ),
+                    // Spec chips (airflow, noise, power)
+                    if (product.airflow != null ||
+                        product.noiseLevel != null ||
+                        product.powerConsumption != null) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          if (product.airflow != null)
+                            _specChip(Icons.air, '${product.airflow!.toInt()} m³/h', theme),
+                          if (product.noiseLevel != null)
+                            _specChip(Icons.volume_up, '${product.noiseLevel!.toInt()} dB', theme),
+                          if (product.powerConsumption != null)
+                            _specChip(Icons.bolt, '${product.powerConsumption!.toInt()} W', theme),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 4),
 
                     // Price
@@ -175,6 +193,29 @@ class ProductCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _specChip(IconData icon, String label, ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.grey[700]),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
       ),
     );
   }

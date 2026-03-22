@@ -23,7 +23,8 @@ mixin _$SearchFilter {
  int? get priceMin; int? get priceMax;// Manufacturer filter (multiple select)
  List<String> get manufacturerIds;// Category filter
  String? get categoryId;// Include discontinued
- bool get includeDiscontinued;// Pagination
+ bool get includeDiscontinued;// Sorting
+ String get sortBy; bool get sortAscending;// Pagination
  int get offset; int get limit;
 /// Create a copy of SearchFilter
 /// with the given fields replaced by the non-null parameter values.
@@ -37,16 +38,16 @@ $SearchFilterCopyWith<SearchFilter> get copyWith => _$SearchFilterCopyWithImpl<S
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SearchFilter&&(identical(other.query, query) || other.query == query)&&(identical(other.widthMin, widthMin) || other.widthMin == widthMin)&&(identical(other.widthMax, widthMax) || other.widthMax == widthMax)&&(identical(other.heightMin, heightMin) || other.heightMin == heightMin)&&(identical(other.heightMax, heightMax) || other.heightMax == heightMax)&&(identical(other.depthMin, depthMin) || other.depthMin == depthMin)&&(identical(other.depthMax, depthMax) || other.depthMax == depthMax)&&(identical(other.pipeDiameterMin, pipeDiameterMin) || other.pipeDiameterMin == pipeDiameterMin)&&(identical(other.pipeDiameterMax, pipeDiameterMax) || other.pipeDiameterMax == pipeDiameterMax)&&(identical(other.voltage, voltage) || other.voltage == voltage)&&(identical(other.priceMin, priceMin) || other.priceMin == priceMin)&&(identical(other.priceMax, priceMax) || other.priceMax == priceMax)&&const DeepCollectionEquality().equals(other.manufacturerIds, manufacturerIds)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.includeDiscontinued, includeDiscontinued) || other.includeDiscontinued == includeDiscontinued)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.limit, limit) || other.limit == limit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SearchFilter&&(identical(other.query, query) || other.query == query)&&(identical(other.widthMin, widthMin) || other.widthMin == widthMin)&&(identical(other.widthMax, widthMax) || other.widthMax == widthMax)&&(identical(other.heightMin, heightMin) || other.heightMin == heightMin)&&(identical(other.heightMax, heightMax) || other.heightMax == heightMax)&&(identical(other.depthMin, depthMin) || other.depthMin == depthMin)&&(identical(other.depthMax, depthMax) || other.depthMax == depthMax)&&(identical(other.pipeDiameterMin, pipeDiameterMin) || other.pipeDiameterMin == pipeDiameterMin)&&(identical(other.pipeDiameterMax, pipeDiameterMax) || other.pipeDiameterMax == pipeDiameterMax)&&(identical(other.voltage, voltage) || other.voltage == voltage)&&(identical(other.priceMin, priceMin) || other.priceMin == priceMin)&&(identical(other.priceMax, priceMax) || other.priceMax == priceMax)&&const DeepCollectionEquality().equals(other.manufacturerIds, manufacturerIds)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.includeDiscontinued, includeDiscontinued) || other.includeDiscontinued == includeDiscontinued)&&(identical(other.sortBy, sortBy) || other.sortBy == sortBy)&&(identical(other.sortAscending, sortAscending) || other.sortAscending == sortAscending)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.limit, limit) || other.limit == limit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,query,widthMin,widthMax,heightMin,heightMax,depthMin,depthMax,pipeDiameterMin,pipeDiameterMax,voltage,priceMin,priceMax,const DeepCollectionEquality().hash(manufacturerIds),categoryId,includeDiscontinued,offset,limit);
+int get hashCode => Object.hashAll([runtimeType,query,widthMin,widthMax,heightMin,heightMax,depthMin,depthMax,pipeDiameterMin,pipeDiameterMax,voltage,priceMin,priceMax,const DeepCollectionEquality().hash(manufacturerIds),categoryId,includeDiscontinued,sortBy,sortAscending,offset,limit]);
 
 @override
 String toString() {
-  return 'SearchFilter(query: $query, widthMin: $widthMin, widthMax: $widthMax, heightMin: $heightMin, heightMax: $heightMax, depthMin: $depthMin, depthMax: $depthMax, pipeDiameterMin: $pipeDiameterMin, pipeDiameterMax: $pipeDiameterMax, voltage: $voltage, priceMin: $priceMin, priceMax: $priceMax, manufacturerIds: $manufacturerIds, categoryId: $categoryId, includeDiscontinued: $includeDiscontinued, offset: $offset, limit: $limit)';
+  return 'SearchFilter(query: $query, widthMin: $widthMin, widthMax: $widthMax, heightMin: $heightMin, heightMax: $heightMax, depthMin: $depthMin, depthMax: $depthMax, pipeDiameterMin: $pipeDiameterMin, pipeDiameterMax: $pipeDiameterMax, voltage: $voltage, priceMin: $priceMin, priceMax: $priceMax, manufacturerIds: $manufacturerIds, categoryId: $categoryId, includeDiscontinued: $includeDiscontinued, sortBy: $sortBy, sortAscending: $sortAscending, offset: $offset, limit: $limit)';
 }
 
 
@@ -57,7 +58,7 @@ abstract mixin class $SearchFilterCopyWith<$Res>  {
   factory $SearchFilterCopyWith(SearchFilter value, $Res Function(SearchFilter) _then) = _$SearchFilterCopyWithImpl;
 @useResult
 $Res call({
- String? query, double? widthMin, double? widthMax, double? heightMin, double? heightMax, double? depthMin, double? depthMax, double? pipeDiameterMin, double? pipeDiameterMax, int? voltage, int? priceMin, int? priceMax, List<String> manufacturerIds, String? categoryId, bool includeDiscontinued, int offset, int limit
+ String? query, double? widthMin, double? widthMax, double? heightMin, double? heightMax, double? depthMin, double? depthMax, double? pipeDiameterMin, double? pipeDiameterMax, int? voltage, int? priceMin, int? priceMax, List<String> manufacturerIds, String? categoryId, bool includeDiscontinued, String sortBy, bool sortAscending, int offset, int limit
 });
 
 
@@ -74,7 +75,7 @@ class _$SearchFilterCopyWithImpl<$Res>
 
 /// Create a copy of SearchFilter
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? query = freezed,Object? widthMin = freezed,Object? widthMax = freezed,Object? heightMin = freezed,Object? heightMax = freezed,Object? depthMin = freezed,Object? depthMax = freezed,Object? pipeDiameterMin = freezed,Object? pipeDiameterMax = freezed,Object? voltage = freezed,Object? priceMin = freezed,Object? priceMax = freezed,Object? manufacturerIds = null,Object? categoryId = freezed,Object? includeDiscontinued = null,Object? offset = null,Object? limit = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? query = freezed,Object? widthMin = freezed,Object? widthMax = freezed,Object? heightMin = freezed,Object? heightMax = freezed,Object? depthMin = freezed,Object? depthMax = freezed,Object? pipeDiameterMin = freezed,Object? pipeDiameterMax = freezed,Object? voltage = freezed,Object? priceMin = freezed,Object? priceMax = freezed,Object? manufacturerIds = null,Object? categoryId = freezed,Object? includeDiscontinued = null,Object? sortBy = null,Object? sortAscending = null,Object? offset = null,Object? limit = null,}) {
   return _then(_self.copyWith(
 query: freezed == query ? _self.query : query // ignore: cast_nullable_to_non_nullable
 as String?,widthMin: freezed == widthMin ? _self.widthMin : widthMin // ignore: cast_nullable_to_non_nullable
@@ -91,6 +92,8 @@ as int?,priceMax: freezed == priceMax ? _self.priceMax : priceMax // ignore: cas
 as int?,manufacturerIds: null == manufacturerIds ? _self.manufacturerIds : manufacturerIds // ignore: cast_nullable_to_non_nullable
 as List<String>,categoryId: freezed == categoryId ? _self.categoryId : categoryId // ignore: cast_nullable_to_non_nullable
 as String?,includeDiscontinued: null == includeDiscontinued ? _self.includeDiscontinued : includeDiscontinued // ignore: cast_nullable_to_non_nullable
+as bool,sortBy: null == sortBy ? _self.sortBy : sortBy // ignore: cast_nullable_to_non_nullable
+as String,sortAscending: null == sortAscending ? _self.sortAscending : sortAscending // ignore: cast_nullable_to_non_nullable
 as bool,offset: null == offset ? _self.offset : offset // ignore: cast_nullable_to_non_nullable
 as int,limit: null == limit ? _self.limit : limit // ignore: cast_nullable_to_non_nullable
 as int,
@@ -178,10 +181,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? query,  double? widthMin,  double? widthMax,  double? heightMin,  double? heightMax,  double? depthMin,  double? depthMax,  double? pipeDiameterMin,  double? pipeDiameterMax,  int? voltage,  int? priceMin,  int? priceMax,  List<String> manufacturerIds,  String? categoryId,  bool includeDiscontinued,  int offset,  int limit)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? query,  double? widthMin,  double? widthMax,  double? heightMin,  double? heightMax,  double? depthMin,  double? depthMax,  double? pipeDiameterMin,  double? pipeDiameterMax,  int? voltage,  int? priceMin,  int? priceMax,  List<String> manufacturerIds,  String? categoryId,  bool includeDiscontinued,  String sortBy,  bool sortAscending,  int offset,  int limit)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SearchFilter() when $default != null:
-return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.heightMax,_that.depthMin,_that.depthMax,_that.pipeDiameterMin,_that.pipeDiameterMax,_that.voltage,_that.priceMin,_that.priceMax,_that.manufacturerIds,_that.categoryId,_that.includeDiscontinued,_that.offset,_that.limit);case _:
+return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.heightMax,_that.depthMin,_that.depthMax,_that.pipeDiameterMin,_that.pipeDiameterMax,_that.voltage,_that.priceMin,_that.priceMax,_that.manufacturerIds,_that.categoryId,_that.includeDiscontinued,_that.sortBy,_that.sortAscending,_that.offset,_that.limit);case _:
   return orElse();
 
 }
@@ -199,10 +202,10 @@ return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? query,  double? widthMin,  double? widthMax,  double? heightMin,  double? heightMax,  double? depthMin,  double? depthMax,  double? pipeDiameterMin,  double? pipeDiameterMax,  int? voltage,  int? priceMin,  int? priceMax,  List<String> manufacturerIds,  String? categoryId,  bool includeDiscontinued,  int offset,  int limit)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? query,  double? widthMin,  double? widthMax,  double? heightMin,  double? heightMax,  double? depthMin,  double? depthMax,  double? pipeDiameterMin,  double? pipeDiameterMax,  int? voltage,  int? priceMin,  int? priceMax,  List<String> manufacturerIds,  String? categoryId,  bool includeDiscontinued,  String sortBy,  bool sortAscending,  int offset,  int limit)  $default,) {final _that = this;
 switch (_that) {
 case _SearchFilter():
-return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.heightMax,_that.depthMin,_that.depthMax,_that.pipeDiameterMin,_that.pipeDiameterMax,_that.voltage,_that.priceMin,_that.priceMax,_that.manufacturerIds,_that.categoryId,_that.includeDiscontinued,_that.offset,_that.limit);case _:
+return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.heightMax,_that.depthMin,_that.depthMax,_that.pipeDiameterMin,_that.pipeDiameterMax,_that.voltage,_that.priceMin,_that.priceMax,_that.manufacturerIds,_that.categoryId,_that.includeDiscontinued,_that.sortBy,_that.sortAscending,_that.offset,_that.limit);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -219,10 +222,10 @@ return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? query,  double? widthMin,  double? widthMax,  double? heightMin,  double? heightMax,  double? depthMin,  double? depthMax,  double? pipeDiameterMin,  double? pipeDiameterMax,  int? voltage,  int? priceMin,  int? priceMax,  List<String> manufacturerIds,  String? categoryId,  bool includeDiscontinued,  int offset,  int limit)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? query,  double? widthMin,  double? widthMax,  double? heightMin,  double? heightMax,  double? depthMin,  double? depthMax,  double? pipeDiameterMin,  double? pipeDiameterMax,  int? voltage,  int? priceMin,  int? priceMax,  List<String> manufacturerIds,  String? categoryId,  bool includeDiscontinued,  String sortBy,  bool sortAscending,  int offset,  int limit)?  $default,) {final _that = this;
 switch (_that) {
 case _SearchFilter() when $default != null:
-return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.heightMax,_that.depthMin,_that.depthMax,_that.pipeDiameterMin,_that.pipeDiameterMax,_that.voltage,_that.priceMin,_that.priceMax,_that.manufacturerIds,_that.categoryId,_that.includeDiscontinued,_that.offset,_that.limit);case _:
+return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.heightMax,_that.depthMin,_that.depthMax,_that.pipeDiameterMin,_that.pipeDiameterMax,_that.voltage,_that.priceMin,_that.priceMax,_that.manufacturerIds,_that.categoryId,_that.includeDiscontinued,_that.sortBy,_that.sortAscending,_that.offset,_that.limit);case _:
   return null;
 
 }
@@ -234,7 +237,7 @@ return $default(_that.query,_that.widthMin,_that.widthMax,_that.heightMin,_that.
 @JsonSerializable()
 
 class _SearchFilter implements SearchFilter {
-  const _SearchFilter({this.query, this.widthMin, this.widthMax, this.heightMin, this.heightMax, this.depthMin, this.depthMax, this.pipeDiameterMin, this.pipeDiameterMax, this.voltage, this.priceMin, this.priceMax, final  List<String> manufacturerIds = const [], this.categoryId, this.includeDiscontinued = false, this.offset = 0, this.limit = 20}): _manufacturerIds = manufacturerIds;
+  const _SearchFilter({this.query, this.widthMin, this.widthMax, this.heightMin, this.heightMax, this.depthMin, this.depthMax, this.pipeDiameterMin, this.pipeDiameterMax, this.voltage, this.priceMin, this.priceMax, final  List<String> manufacturerIds = const [], this.categoryId, this.includeDiscontinued = false, this.sortBy = 'updated_at', this.sortAscending = false, this.offset = 0, this.limit = 20}): _manufacturerIds = manufacturerIds;
   factory _SearchFilter.fromJson(Map<String, dynamic> json) => _$SearchFilterFromJson(json);
 
 // Text search
@@ -267,6 +270,9 @@ class _SearchFilter implements SearchFilter {
 @override final  String? categoryId;
 // Include discontinued
 @override@JsonKey() final  bool includeDiscontinued;
+// Sorting
+@override@JsonKey() final  String sortBy;
+@override@JsonKey() final  bool sortAscending;
 // Pagination
 @override@JsonKey() final  int offset;
 @override@JsonKey() final  int limit;
@@ -284,16 +290,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SearchFilter&&(identical(other.query, query) || other.query == query)&&(identical(other.widthMin, widthMin) || other.widthMin == widthMin)&&(identical(other.widthMax, widthMax) || other.widthMax == widthMax)&&(identical(other.heightMin, heightMin) || other.heightMin == heightMin)&&(identical(other.heightMax, heightMax) || other.heightMax == heightMax)&&(identical(other.depthMin, depthMin) || other.depthMin == depthMin)&&(identical(other.depthMax, depthMax) || other.depthMax == depthMax)&&(identical(other.pipeDiameterMin, pipeDiameterMin) || other.pipeDiameterMin == pipeDiameterMin)&&(identical(other.pipeDiameterMax, pipeDiameterMax) || other.pipeDiameterMax == pipeDiameterMax)&&(identical(other.voltage, voltage) || other.voltage == voltage)&&(identical(other.priceMin, priceMin) || other.priceMin == priceMin)&&(identical(other.priceMax, priceMax) || other.priceMax == priceMax)&&const DeepCollectionEquality().equals(other._manufacturerIds, _manufacturerIds)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.includeDiscontinued, includeDiscontinued) || other.includeDiscontinued == includeDiscontinued)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.limit, limit) || other.limit == limit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SearchFilter&&(identical(other.query, query) || other.query == query)&&(identical(other.widthMin, widthMin) || other.widthMin == widthMin)&&(identical(other.widthMax, widthMax) || other.widthMax == widthMax)&&(identical(other.heightMin, heightMin) || other.heightMin == heightMin)&&(identical(other.heightMax, heightMax) || other.heightMax == heightMax)&&(identical(other.depthMin, depthMin) || other.depthMin == depthMin)&&(identical(other.depthMax, depthMax) || other.depthMax == depthMax)&&(identical(other.pipeDiameterMin, pipeDiameterMin) || other.pipeDiameterMin == pipeDiameterMin)&&(identical(other.pipeDiameterMax, pipeDiameterMax) || other.pipeDiameterMax == pipeDiameterMax)&&(identical(other.voltage, voltage) || other.voltage == voltage)&&(identical(other.priceMin, priceMin) || other.priceMin == priceMin)&&(identical(other.priceMax, priceMax) || other.priceMax == priceMax)&&const DeepCollectionEquality().equals(other._manufacturerIds, _manufacturerIds)&&(identical(other.categoryId, categoryId) || other.categoryId == categoryId)&&(identical(other.includeDiscontinued, includeDiscontinued) || other.includeDiscontinued == includeDiscontinued)&&(identical(other.sortBy, sortBy) || other.sortBy == sortBy)&&(identical(other.sortAscending, sortAscending) || other.sortAscending == sortAscending)&&(identical(other.offset, offset) || other.offset == offset)&&(identical(other.limit, limit) || other.limit == limit));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,query,widthMin,widthMax,heightMin,heightMax,depthMin,depthMax,pipeDiameterMin,pipeDiameterMax,voltage,priceMin,priceMax,const DeepCollectionEquality().hash(_manufacturerIds),categoryId,includeDiscontinued,offset,limit);
+int get hashCode => Object.hashAll([runtimeType,query,widthMin,widthMax,heightMin,heightMax,depthMin,depthMax,pipeDiameterMin,pipeDiameterMax,voltage,priceMin,priceMax,const DeepCollectionEquality().hash(_manufacturerIds),categoryId,includeDiscontinued,sortBy,sortAscending,offset,limit]);
 
 @override
 String toString() {
-  return 'SearchFilter(query: $query, widthMin: $widthMin, widthMax: $widthMax, heightMin: $heightMin, heightMax: $heightMax, depthMin: $depthMin, depthMax: $depthMax, pipeDiameterMin: $pipeDiameterMin, pipeDiameterMax: $pipeDiameterMax, voltage: $voltage, priceMin: $priceMin, priceMax: $priceMax, manufacturerIds: $manufacturerIds, categoryId: $categoryId, includeDiscontinued: $includeDiscontinued, offset: $offset, limit: $limit)';
+  return 'SearchFilter(query: $query, widthMin: $widthMin, widthMax: $widthMax, heightMin: $heightMin, heightMax: $heightMax, depthMin: $depthMin, depthMax: $depthMax, pipeDiameterMin: $pipeDiameterMin, pipeDiameterMax: $pipeDiameterMax, voltage: $voltage, priceMin: $priceMin, priceMax: $priceMax, manufacturerIds: $manufacturerIds, categoryId: $categoryId, includeDiscontinued: $includeDiscontinued, sortBy: $sortBy, sortAscending: $sortAscending, offset: $offset, limit: $limit)';
 }
 
 
@@ -304,7 +310,7 @@ abstract mixin class _$SearchFilterCopyWith<$Res> implements $SearchFilterCopyWi
   factory _$SearchFilterCopyWith(_SearchFilter value, $Res Function(_SearchFilter) _then) = __$SearchFilterCopyWithImpl;
 @override @useResult
 $Res call({
- String? query, double? widthMin, double? widthMax, double? heightMin, double? heightMax, double? depthMin, double? depthMax, double? pipeDiameterMin, double? pipeDiameterMax, int? voltage, int? priceMin, int? priceMax, List<String> manufacturerIds, String? categoryId, bool includeDiscontinued, int offset, int limit
+ String? query, double? widthMin, double? widthMax, double? heightMin, double? heightMax, double? depthMin, double? depthMax, double? pipeDiameterMin, double? pipeDiameterMax, int? voltage, int? priceMin, int? priceMax, List<String> manufacturerIds, String? categoryId, bool includeDiscontinued, String sortBy, bool sortAscending, int offset, int limit
 });
 
 
@@ -321,7 +327,7 @@ class __$SearchFilterCopyWithImpl<$Res>
 
 /// Create a copy of SearchFilter
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? query = freezed,Object? widthMin = freezed,Object? widthMax = freezed,Object? heightMin = freezed,Object? heightMax = freezed,Object? depthMin = freezed,Object? depthMax = freezed,Object? pipeDiameterMin = freezed,Object? pipeDiameterMax = freezed,Object? voltage = freezed,Object? priceMin = freezed,Object? priceMax = freezed,Object? manufacturerIds = null,Object? categoryId = freezed,Object? includeDiscontinued = null,Object? offset = null,Object? limit = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? query = freezed,Object? widthMin = freezed,Object? widthMax = freezed,Object? heightMin = freezed,Object? heightMax = freezed,Object? depthMin = freezed,Object? depthMax = freezed,Object? pipeDiameterMin = freezed,Object? pipeDiameterMax = freezed,Object? voltage = freezed,Object? priceMin = freezed,Object? priceMax = freezed,Object? manufacturerIds = null,Object? categoryId = freezed,Object? includeDiscontinued = null,Object? sortBy = null,Object? sortAscending = null,Object? offset = null,Object? limit = null,}) {
   return _then(_SearchFilter(
 query: freezed == query ? _self.query : query // ignore: cast_nullable_to_non_nullable
 as String?,widthMin: freezed == widthMin ? _self.widthMin : widthMin // ignore: cast_nullable_to_non_nullable
@@ -338,6 +344,8 @@ as int?,priceMax: freezed == priceMax ? _self.priceMax : priceMax // ignore: cas
 as int?,manufacturerIds: null == manufacturerIds ? _self._manufacturerIds : manufacturerIds // ignore: cast_nullable_to_non_nullable
 as List<String>,categoryId: freezed == categoryId ? _self.categoryId : categoryId // ignore: cast_nullable_to_non_nullable
 as String?,includeDiscontinued: null == includeDiscontinued ? _self.includeDiscontinued : includeDiscontinued // ignore: cast_nullable_to_non_nullable
+as bool,sortBy: null == sortBy ? _self.sortBy : sortBy // ignore: cast_nullable_to_non_nullable
+as String,sortAscending: null == sortAscending ? _self.sortAscending : sortAscending // ignore: cast_nullable_to_non_nullable
 as bool,offset: null == offset ? _self.offset : offset // ignore: cast_nullable_to_non_nullable
 as int,limit: null == limit ? _self.limit : limit // ignore: cast_nullable_to_non_nullable
 as int,

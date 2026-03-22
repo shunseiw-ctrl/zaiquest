@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../domain/entities/search_filter.dart';
 import '../../../providers/product_providers.dart';
 
 class SearchBarWidget extends ConsumerStatefulWidget {
@@ -71,11 +72,15 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
           ),
         ),
         const SizedBox(width: 8),
-        IconButton.filledTonal(
-          icon: Icon(
-            widget.showFilters ? Icons.filter_list_off : Icons.filter_list,
+        Badge(
+          isLabelVisible: ref.watch(searchFilterNotifierProvider).activeFilterCount > 0,
+          label: Text('${ref.watch(searchFilterNotifierProvider).activeFilterCount}'),
+          child: IconButton.filledTonal(
+            icon: Icon(
+              widget.showFilters ? Icons.filter_list_off : Icons.filter_list,
+            ),
+            onPressed: widget.onFilterToggle,
           ),
-          onPressed: widget.onFilterToggle,
         ),
       ],
     );

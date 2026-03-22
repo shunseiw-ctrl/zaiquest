@@ -78,6 +78,25 @@ final hasMoreResultsProvider = AutoDisposeProvider<bool>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef HasMoreResultsRef = AutoDisposeProviderRef<bool>;
+String _$searchResultCountHash() => r'c9a87bf15a28bf6f51203e356dfb8d6a8bccba90';
+
+/// Total count of search results (ignores pagination).
+///
+/// Copied from [searchResultCount].
+@ProviderFor(searchResultCount)
+final searchResultCountProvider = AutoDisposeFutureProvider<int>.internal(
+  searchResultCount,
+  name: r'searchResultCountProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$searchResultCountHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SearchResultCountRef = AutoDisposeFutureProviderRef<int>;
 String _$searchResultsHash() => r'7a7b4733d2a199e92466c873e3f7f61c01c5118f';
 
 /// See also [searchResults].
@@ -275,7 +294,7 @@ final categoriesProvider =
 typedef CategoriesRef =
     AutoDisposeFutureProviderRef<List<Map<String, dynamic>>>;
 String _$searchFilterNotifierHash() =>
-    r'e8bd26f6a3b3a61b57481e6e3f6f5cd751e2450c';
+    r'd8fd14b46c4e0efb32b752a1adebd7447c41e431';
 
 /// See also [SearchFilterNotifier].
 @ProviderFor(SearchFilterNotifier)

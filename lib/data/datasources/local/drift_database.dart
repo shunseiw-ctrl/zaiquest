@@ -94,6 +94,8 @@ class AppDatabase extends _$AppDatabase {
     int? priceMax,
     List<String>? manufacturerIds,
     bool includeDiscontinued = false,
+    String sortBy = 'updated_at',
+    bool sortAscending = false,
     int limit = 20,
     int offset = 0,
   }) async {
@@ -142,6 +144,20 @@ class AppDatabase extends _$AppDatabase {
 
       return condition;
     });
+
+    // Dynamic sort
+    final mode =
+        sortAscending ? OrderingMode.asc : OrderingMode.desc;
+    q.orderBy([
+      (t) {
+        final column = switch (sortBy) {
+          'list_price' => t.listPrice,
+          'model_number' => t.modelNumber,
+          _ => t.updatedAt,
+        };
+        return OrderingTerm(expression: column, mode: mode);
+      },
+    ]);
 
     return q.get();
   }

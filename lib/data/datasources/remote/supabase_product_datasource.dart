@@ -7,11 +7,11 @@ class SupabaseProductDatasource {
 
   SupabaseProductDatasource(this._client);
 
-  Future<List<Map<String, dynamic>>> search(SearchFilter filter) async {
-    var query = _client
-        .from('products')
-        .select('*, manufacturers(name), categories(name)');
-
+  /// Apply shared filter conditions to a query.
+  PostgrestFilterBuilder<T> _applyFilters<T>(
+    PostgrestFilterBuilder<T> query,
+    SearchFilter filter,
+  ) {
     // Text search on model_number
     if (filter.query != null && filter.query!.isNotEmpty) {
       query = query.ilike('model_number', '%${filter.query}%');
@@ -71,11 +71,27 @@ class SupabaseProductDatasource {
       query = query.eq('is_discontinued', false);
     }
 
+    return query;
+  }
+
+  Future<List<Map<String, dynamic>>> search(SearchFilter filter) async {
+    var query = _client
+        .from('products')
+        .select('*, manufacturers(name), categories(name)');
+
+    query = _applyFilters(query, filter);
+
     final response = await query
-        .order('updated_at', ascending: false)
+        .order(filter.sortBy, ascending: filter.sortAscending)
         .range(filter.offset, filter.offset + filter.limit - 1);
 
     return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<int> searchCount(SearchFilter filter) async {
+    var query = _client.from('products').count();
+    query = _applyFilters(query, filter);
+    return await query;
   }
 
   Future<Map<String, dynamic>?> getById(String id) async {

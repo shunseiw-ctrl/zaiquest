@@ -27,6 +27,8 @@ _SearchFilter _$SearchFilterFromJson(Map<String, dynamic> json) =>
           const [],
       categoryId: json['categoryId'] as String?,
       includeDiscontinued: json['includeDiscontinued'] as bool? ?? false,
+      sortBy: json['sortBy'] as String? ?? 'updated_at',
+      sortAscending: json['sortAscending'] as bool? ?? false,
       offset: (json['offset'] as num?)?.toInt() ?? 0,
       limit: (json['limit'] as num?)?.toInt() ?? 20,
     );
@@ -48,6 +50,8 @@ Map<String, dynamic> _$SearchFilterToJson(_SearchFilter instance) =>
       'manufacturerIds': instance.manufacturerIds,
       'categoryId': instance.categoryId,
       'includeDiscontinued': instance.includeDiscontinued,
+      'sortBy': instance.sortBy,
+      'sortAscending': instance.sortAscending,
       'offset': instance.offset,
       'limit': instance.limit,
     };

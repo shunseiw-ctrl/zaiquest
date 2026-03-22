@@ -11,6 +11,7 @@ class FilterPanel extends ConsumerWidget {
     final filter = ref.watch(searchFilterNotifierProvider);
     final notifier = ref.read(searchFilterNotifierProvider.notifier);
     final manufacturers = ref.watch(manufacturersProvider);
+    final categoriesAsync = ref.watch(categoriesProvider);
     final theme = Theme.of(context);
 
     return Container(
@@ -18,6 +19,36 @@ class FilterPanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Category filter
+          Text('カテゴリ', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          categoriesAsync.when(
+            data: (categories) => Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('全て'),
+                  selected: filter.categoryId == null,
+                  onSelected: (_) => notifier.updateCategory(null),
+                ),
+                ...categories.map((c) {
+                  final id = c['id'] as String;
+                  final name = c['name'] as String;
+                  return ChoiceChip(
+                    label: Text(name),
+                    selected: filter.categoryId == id,
+                    onSelected: (_) => notifier.updateCategory(
+                      filter.categoryId == id ? null : id,
+                    ),
+                  );
+                }),
+              ],
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 12),
+
           // Voltage toggle
           Text('電圧', style: theme.textTheme.titleSmall),
           const SizedBox(height: 4),

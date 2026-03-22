@@ -28,6 +28,9 @@ abstract class SearchFilter with _$SearchFilter {
     String? categoryId,
     // Include discontinued
     @Default(false) bool includeDiscontinued,
+    // Sorting
+    @Default('updated_at') String sortBy,
+    @Default(false) bool sortAscending,
     // Pagination
     @Default(0) int offset,
     @Default(20) int limit,
@@ -35,4 +38,20 @@ abstract class SearchFilter with _$SearchFilter {
 
   factory SearchFilter.fromJson(Map<String, dynamic> json) =>
       _$SearchFilterFromJson(json);
+}
+
+extension SearchFilterX on SearchFilter {
+  int get activeFilterCount {
+    int count = 0;
+    if (voltage != null) count++;
+    if (widthMin != null || widthMax != null) count++;
+    if (heightMin != null || heightMax != null) count++;
+    if (depthMin != null || depthMax != null) count++;
+    if (pipeDiameterMin != null || pipeDiameterMax != null) count++;
+    if (priceMin != null || priceMax != null) count++;
+    if (manufacturerIds.isNotEmpty) count++;
+    if (categoryId != null) count++;
+    if (includeDiscontinued) count++;
+    return count;
+  }
 }

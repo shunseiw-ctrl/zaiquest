@@ -93,6 +93,10 @@ class SearchFilterNotifier extends _$SearchFilterNotifier {
     );
   }
 
+  void updateSort(String sortBy, bool ascending) {
+    state = state.copyWith(sortBy: sortBy, sortAscending: ascending, offset: 0);
+  }
+
   void resetFilters() {
     state = const SearchFilter();
   }
@@ -135,6 +139,14 @@ bool hasMoreResults(HasMoreResultsRef ref) {
   // If we got fewer results than expected for the current page, no more data
   final expectedTotal = filter.offset + filter.limit;
   return results.length >= expectedTotal;
+}
+
+/// Total count of search results (ignores pagination).
+@riverpod
+Future<int> searchResultCount(SearchResultCountRef ref) async {
+  final filter = ref.watch(searchFilterNotifierProvider);
+  final datasource = ref.watch(supabaseProductDatasourceProvider);
+  return datasource.searchCount(filter);
 }
 
 // Keep searchResultsProvider for backward compatibility

@@ -121,8 +121,8 @@ function parseCategoryPage(
 
     // Extract pipe diameter from description
     let pipeDiameter: string | null = null;
-    const pipeMatch = descText.match(/[φΦ](\d+)/);
-    if (pipeMatch) pipeDiameter = pipeMatch[1];
+    const pipeMatch = descText.match(/[φΦ](\d+)|直径(\d+)|接続ダクト径[^\d]*(\d+)/);
+    if (pipeMatch) pipeDiameter = pipeMatch[1] ?? pipeMatch[2] ?? pipeMatch[3];
 
     // Product URL on the official site
     const productUrl = `${BASE_URL}${categoryPath}`;

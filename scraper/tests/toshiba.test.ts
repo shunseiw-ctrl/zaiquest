@@ -28,10 +28,17 @@ describe('toshiba scraper', () => {
     });
 
     it('extracts pipe diameter from description', () => {
-      const pipeRegex = /[φΦ](\d+)/;
-      expect('φ100mm パイプファン'.match(pipeRegex)?.[1]).toBe('100');
-      expect('Φ150 ダクト'.match(pipeRegex)?.[1]).toBe('150');
-      expect('径不明'.match(pipeRegex)).toBeNull();
+      const pipeRegex = /[φΦ](\d+)|直径(\d+)|接続ダクト径[^\d]*(\d+)/;
+      const extract = (s: string) => {
+        const m = s.match(pipeRegex);
+        return m ? (m[1] ?? m[2] ?? m[3]) : null;
+      };
+      expect(extract('φ100mm パイプファン')).toBe('100');
+      expect(extract('Φ150 ダクト')).toBe('150');
+      expect(extract('直径100mm')).toBe('100');
+      expect(extract('［ 接続ダクト径 ］ 直径100mm')).toBe('100');
+      expect(extract('接続ダクト径 150mm')).toBe('150');
+      expect(extract('径不明')).toBeNull();
     });
   });
 });
@@ -82,6 +89,19 @@ describe('parseToshibaDetailPage', () => {
     expect(spec.voltage).toBe('AC100V 50/60Hz');
     expect(spec.airflow).toBe('120 m³/h');
     expect(spec.noise_level).toBe('32 dB');
+  });
+
+  it('should extract pipe diameter from 直径 format', () => {
+    const html = `<html><body>
+      <table>
+        <tr><th>接続ダクト径</th><td>直径100mm</td></tr>
+        <tr><th>電源</th><td>単相100V</td></tr>
+      </table>
+    </body></html>`;
+
+    const spec = parseToshibaDetailPage(html);
+    expect(spec.pipe_diameter).toBe(100);
+    expect(spec.voltage).toBe('単相100V');
   });
 
   it('should extract partial data', () => {

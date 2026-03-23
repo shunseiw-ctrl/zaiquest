@@ -40,58 +40,110 @@ export interface PanasonicScrapingResult {
   errors: string[];
 }
 
+/**
+ * Extract specs from the kanki-recommend--texts description block.
+ * Returns partial raw_data with dimensions (mm) and power consumption.
+ */
+export function extractSpecsFromDescription(text: string): Record<string, unknown> {
+  const specs: Record<string, unknown> = {};
+
+  // 寸法: 高さ17.5×幅17×奥行4.5cm → mm換算
+  const dimMatch = text.match(/高さ([\d.]+)×幅([\d.]+)×奥行([\d.]+)\s*cm/);
+  if (dimMatch) {
+    specs.height_mm = Math.round(parseFloat(dimMatch[1]) * 10);
+    specs.width_mm = Math.round(parseFloat(dimMatch[2]) * 10);
+    specs.depth_mm = Math.round(parseFloat(dimMatch[3]) * 10);
+  }
+
+  // 消費電力: 消費電力(50/60Hz) 強1.9/2.2W 弱1.4/1.5W
+  const powerMatch = text.match(/消費電力[^●]*?([\d.]+)\/([\d.]+)\s*W/);
+  if (powerMatch) {
+    specs.power_consumption_50hz = `${powerMatch[1]}W`;
+    specs.power_consumption_60hz = `${powerMatch[2]}W`;
+  }
+
+  return specs;
+}
+
+/**
+ * Parse a Panasonic ventilation category list page.
+ * Extracts products from `ul.kanki-recommend__block > li` structure.
+ */
+export function parsePanasonicListPage(html: string, categoryPath: string): RawProduct[] {
+  const $ = cheerio.load(html);
+  const products: RawProduct[] = [];
+
+  $('.kanki-recommend__block li').each((_, el) => {
+    try {
+      const $li = $(el);
+
+      // モデル番号: dt テキストから FY- で始まる型番を正規表現抽出
+      const dtText = $li.find('dt').text().trim();
+      const modelMatch = dtText.match(/(FY-[\w]+)/);
+      if (!modelMatch) return;
+
+      const modelNumber = modelMatch[1];
+
+      // 製品名: dt 内の span テキスト（カテゴリ名）+ モデル番号
+      const spanText = $li.find('dt span').text().trim();
+      const name = spanText ? `${spanText} ${modelNumber}` : modelNumber;
+
+      // 画像URL
+      const imgSrc = $li.find('img[alt="写真"]').attr('src') || $li.find('img').first().attr('src');
+      const imageUrl = imgSrc
+        ? (imgSrc.startsWith('http') ? imgSrc : `${BASE_URL}${imgSrc}`)
+        : null;
+
+      // 詳細リンク
+      const href = $li.find('a').first().attr('href');
+      const productUrl = href
+        ? (href.startsWith('http') ? href : `${BASE_URL}${href}`)
+        : `${BASE_URL}${categoryPath}`;
+
+      // 説明文からスペック抽出
+      const descText = $li.find('.kanki-recommend--texts').text().trim();
+      const rawData = descText ? extractSpecsFromDescription(descText) : {};
+      if (descText) {
+        rawData.description = descText;
+      }
+
+      products.push({
+        model_number: modelNumber,
+        name,
+        manufacturer_slug: 'panasonic',
+        category_slug: mapCategory(spanText || categoryPath),
+        image_url: imageUrl,
+        product_url: productUrl,
+        source: 'panasonic_biz',
+        source_id: null,
+        raw_data: Object.keys(rawData).length > 0 ? rawData : null,
+      });
+    } catch {
+      // Skip unparseable items
+    }
+  });
+
+  return products;
+}
+
 /** Scrape Panasonic Biz ventilation products */
 export async function scrapePanasonic(): Promise<PanasonicScrapingResult> {
   const products: RawProduct[] = [];
   const errors: string[] = [];
 
-  // Panasonic Biz has a product search with detail.php pages
+  // Panasonic Biz ventilation product category pages
   const categoryUrls = [
-    '/air/kanki/pipe/',      // パイプファン
-    '/air/kanki/tenpura/',   // 天埋換気扇
-    '/air/kanki/range/',     // レンジフード
-    '/air/kanki/bathkan/',   // 浴室換気乾燥機
+    '/air/kanki/pipe/',        // パイプファン
+    '/air/kanki/tenume/',      // 天埋換気扇
+    '/air/kanki/rangehood/',   // レンジフード
+    '/air/kanki/bathkan/',     // 浴室換気乾燥機
   ];
 
   for (const categoryPath of categoryUrls) {
     try {
       const html = await fetchPage(`${BASE_URL}${categoryPath}`);
-      const $ = cheerio.load(html);
-
-      // Find product links
-      $('a[href*="detail"]').each((_, el) => {
-        const href = $(el).attr('href');
-        if (href) {
-          const fullUrl = href.startsWith('http') ? href : `${BASE_URL}${href}`;
-          // Queue for later scraping
-        }
-      });
-
-      // Parse product listings directly if available
-      $('table tr, .product-list .product-item').each((_, el) => {
-        try {
-          const $el = $(el);
-          const modelNumber = $el.find('.model-number, td:first-child a').text().trim();
-          const name = $el.find('.product-name, td:nth-child(2)').text().trim();
-          const price = $el.find('.price, td:nth-child(3)').text().trim();
-
-          if (modelNumber && modelNumber.match(/^FY-/)) {
-            products.push({
-              model_number: modelNumber,
-              name: name || modelNumber,
-              manufacturer_slug: 'panasonic',
-              category_slug: mapCategory(categoryPath),
-              list_price: price || null,
-              product_url: `${BASE_URL}${categoryPath}`,
-              source: 'panasonic_biz',
-              source_id: null,
-              raw_data: null,
-            });
-          }
-        } catch (e) {
-          // Skip unparseable rows
-        }
-      });
+      const parsed = parsePanasonicListPage(html, categoryPath);
+      products.push(...parsed);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`Failed to scrape ${categoryPath}: ${msg}`);

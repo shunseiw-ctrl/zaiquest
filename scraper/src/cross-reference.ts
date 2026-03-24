@@ -23,7 +23,7 @@ export async function crossReferenceSpecs(): Promise<{ merged: number; errors: s
   const { data: mfgProducts, error: mfgError } = await supabase
     .from('products')
     .select('model_number, voltage, airflow, noise_level, power_consumption, width_mm, height_mm, depth_mm, pipe_diameter, list_price')
-    .in('source', ['toshiba', 'panasonic_biz']);
+    .in('source', ['toshiba', 'panasonic_biz', 'mitsubishi_pdf', 'mitsubishi_wink']);
 
   if (mfgError || !mfgProducts) {
     throw new Error(`Failed to fetch manufacturer products: ${mfgError?.message}`);

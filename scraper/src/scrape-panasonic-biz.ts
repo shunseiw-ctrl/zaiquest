@@ -15,13 +15,18 @@ const DETAIL_URL_BASE =
   'https://www2.panasonic.biz/jp/air/kanki/okikae/detail.php?detail_hinban=';
 const DELAY_MS = 2000;
 
+// カラーコード・バリエーション記号のパターン（型番末尾に付くもの）
+// 注意: FY-17C8 の "-17C8" のような型番本体部分は削らない
+// カラーコードは最後のハイフン区切り部分で、1〜3文字のアルファベットのみ
+export const COLOR_CODE_PATTERN = /-(W|C|BL|BE|K|S|G|T|WH|CK|FP|D|N|MW|MC|MBL|MBE|MK|MS|MG|MT)$/i;
+
 // --- Types ---
 interface TargetProduct {
   id: string;
   model_number: string;
 }
 
-interface ScrapedSpec {
+export interface ScrapedSpec {
   airflow: string | null;
   power_consumption: string | null;
   noise_level: string | null;
@@ -49,16 +54,16 @@ async function fetchTargetProducts(): Promise<TargetProduct[]> {
   return (data ?? []) as TargetProduct[];
 }
 
-// --- Step 2: Scrape detail page ---
-async function scrapeDetailPage(modelNumber: string): Promise<ScrapedSpec> {
-  const url = `${DETAIL_URL_BASE}${encodeURIComponent(modelNumber)}`;
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} for ${modelNumber}`);
+// --- Helper: カラーコードを除去してベース型番を取得 ---
+export function stripColorCode(modelNumber: string): string | null {
+  if (COLOR_CODE_PATTERN.test(modelNumber)) {
+    return modelNumber.replace(COLOR_CODE_PATTERN, '');
   }
+  return null;
+}
 
-  const html = await response.text();
+// --- Step 2: HTMLからスペックをパース ---
+export function parseSpec(html: string): ScrapedSpec {
   const $ = cheerio.load(html);
 
   const spec: ScrapedSpec = {
@@ -104,6 +109,57 @@ async function scrapeDetailPage(modelNumber: string): Promise<ScrapedSpec> {
   return spec;
 }
 
+// --- Step 2b: HTMLがデータを含むか判定 ---
+export function hasSpecData(spec: ScrapedSpec): boolean {
+  return !!(spec.airflow || spec.power_consumption || spec.noise_level);
+}
+
+// --- Step 2c: ページをフェッチしてパース（キャッシュ付き） ---
+// ベース型番でフェッチした結果をキャッシュして重複フェッチを防ぐ
+const fetchCache = new Map<string, ScrapedSpec>();
+
+async function scrapeDetailPage(modelNumber: string): Promise<ScrapedSpec> {
+  // キャッシュチェック
+  if (fetchCache.has(modelNumber)) {
+    return fetchCache.get(modelNumber)!;
+  }
+
+  const url = `${DETAIL_URL_BASE}${encodeURIComponent(modelNumber)}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${modelNumber}`);
+  }
+
+  const html = await response.text();
+  const spec = parseSpec(html);
+
+  fetchCache.set(modelNumber, spec);
+  return spec;
+}
+
+// --- Step 2d: リトライ付きスクレイプ ---
+async function scrapeWithRetry(modelNumber: string): Promise<{ spec: ScrapedSpec; usedModel: string }> {
+  // 1. まず元の型番で試行
+  const spec = await scrapeDetailPage(modelNumber);
+  if (hasSpecData(spec)) {
+    return { spec, usedModel: modelNumber };
+  }
+
+  // 2. カラーコードを除去してリトライ
+  const baseModel = stripColorCode(modelNumber);
+  if (baseModel && baseModel !== modelNumber) {
+    // キャッシュにあればフェッチ不要（重複バリエーション対策）
+    const baseSpec = await scrapeDetailPage(baseModel);
+    if (hasSpecData(baseSpec)) {
+      return { spec: baseSpec, usedModel: baseModel };
+    }
+  }
+
+  // 3. どちらもダメ
+  return { spec, usedModel: modelNumber };
+}
+
 // --- Main ---
 async function main() {
   console.log('=== Panasonic BIZ スペック補完スクレイパー ===');
@@ -121,23 +177,39 @@ async function main() {
   let updated = 0;
   let skipped = 0;
   let errors = 0;
+  let cacheHits = 0;
+
+  // 同じベース型番のフェッチ済みセットを追跡（delayスキップ用）
+  const fetchedUrls = new Set<string>();
 
   for (let i = 0; i < products.length; i++) {
     const product = products[i];
 
     try {
-      const spec = await scrapeDetailPage(product.model_number);
+      const { spec, usedModel } = await scrapeWithRetry(product.model_number);
+
+      // キャッシュヒットだった場合はログ
+      const wasCached = fetchedUrls.has(usedModel) && usedModel !== product.model_number;
+      if (wasCached) cacheHits++;
 
       // Check if we got any data
-      if (!spec.airflow && !spec.power_consumption && !spec.noise_level) {
+      if (!hasSpecData(spec)) {
         skipped++;
         if ((i + 1) % 10 === 0 || i === products.length - 1) {
           console.log(
-            `[${i + 1}/${products.length}] 進捗: 更新=${updated}, スキップ=${skipped}, エラー=${errors}`
+            `[${i + 1}/${products.length}] 進捗: 更新=${updated}, スキップ=${skipped}, エラー=${errors}, キャッシュヒット=${cacheHits}`
           );
         }
-        await sleep(DELAY_MS);
+        // キャッシュヒットならdelay不要
+        if (!wasCached) {
+          fetchedUrls.add(product.model_number);
+          await sleep(DELAY_MS);
+        }
         continue;
+      }
+
+      if (usedModel !== product.model_number) {
+        console.log(`  [RETRY OK] ${product.model_number} → ${usedModel} でヒット`);
       }
 
       // Build update object (only non-null fields)
@@ -166,10 +238,12 @@ async function main() {
       errors++;
     }
 
+    fetchedUrls.add(product.model_number);
+
     // Progress log every 10 items
     if ((i + 1) % 10 === 0 || i === products.length - 1) {
       console.log(
-        `[${i + 1}/${products.length}] 進捗: 更新=${updated}, スキップ=${skipped}, エラー=${errors}`
+        `[${i + 1}/${products.length}] 進捗: 更新=${updated}, スキップ=${skipped}, エラー=${errors}, キャッシュヒット=${cacheHits}`
       );
     }
 
@@ -181,6 +255,8 @@ async function main() {
   console.log(`更新: ${updated}`);
   console.log(`スキップ (データなし): ${skipped}`);
   console.log(`エラー: ${errors}`);
+  console.log(`キャッシュヒット: ${cacheHits}`);
+  console.log(`フェッチキャッシュサイズ: ${fetchCache.size}`);
 }
 
 main().catch((err) => {

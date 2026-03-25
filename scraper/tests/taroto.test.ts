@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 // Import parseListingPage directly - it's exported from the module
-import { parseListingPage, parseDetailPage } from '../src/sources/taroto.js';
+import { parseListingPage, parseDetailPage, parseComparisonPage } from '../src/sources/taroto.js';
 
 describe('taroto parseListingPage', () => {
   it('extracts products from listing HTML', () => {
@@ -248,5 +248,130 @@ describe('taroto parseDetailPage', () => {
     expect(spec.pipe_diameter).toBeNull();
     expect(spec.voltage).toBeNull();
     expect(spec.list_price).toBeNull();
+  });
+});
+
+describe('taroto parseComparisonPage', () => {
+  it('extracts replacement model products from comparison table', () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr>
+            <td>V-10Z<br/>V-10Z2<br/>V-10Z2-1</td>
+            <td><a href="https://www.taroto.jp/view/item/000000026272">VD-10ZJ14</a></td>
+            <td>風量増加</td>
+          </tr>
+        </table>
+      </body></html>
+    `;
+
+    const products = parseComparisonPage(html, 'mitsubishi');
+    expect(products.length).toBe(1);
+    expect(products[0].model_number).toBe('VD-10ZJ14');
+    expect(products[0].manufacturer_slug).toBe('mitsubishi');
+    expect(products[0].source).toBe('taroto');
+    expect(products[0].source_id).toBe('000000026272');
+    expect(products[0].product_url).toBe('https://www.taroto.jp/view/item/000000026272');
+    expect(products[0].predecessor_model).toBe('V-10Z');
+    expect(products[0].raw_data).toEqual({ taihi_note: '風量増加' });
+  });
+
+  it('deduplicates products by item ID', () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr>
+            <td>FV-10A</td>
+            <td><a href="/view/item/100">FY-17S7</a></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>FV-10B</td>
+            <td><a href="/view/item/100">FY-17S7</a></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>FV-20A</td>
+            <td><a href="/view/item/200">FY-24BM6K</a></td>
+            <td>埋込寸法が異なります</td>
+          </tr>
+        </table>
+      </body></html>
+    `;
+
+    const products = parseComparisonPage(html, 'panasonic');
+    expect(products.length).toBe(2);
+    expect(products[0].model_number).toBe('FY-17S7');
+    expect(products[1].model_number).toBe('FY-24BM6K');
+  });
+
+  it('handles multiple product links in a single cell', () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr>
+            <td>VFP-8GK</td>
+            <td>
+              <a href="/view/item/300">VFP-8GK4</a>（標準）<br/>
+              <a href="/view/item/301">VFP-8WGK4</a>（防水）
+            </td>
+            <td>仕様変更</td>
+          </tr>
+        </table>
+      </body></html>
+    `;
+
+    const products = parseComparisonPage(html, 'toshiba');
+    expect(products.length).toBe(2);
+    expect(products[0].model_number).toBe('VFP-8GK4');
+    expect(products[1].model_number).toBe('VFP-8WGK4');
+  });
+
+  it('handles relative URLs', () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr>
+            <td>V-08PD7</td>
+            <td><a href="/view/item/500">V-08PQFF4</a></td>
+            <td></td>
+          </tr>
+        </table>
+      </body></html>
+    `;
+
+    const products = parseComparisonPage(html, 'mitsubishi');
+    expect(products.length).toBe(1);
+    expect(products[0].product_url).toBe('https://www.taroto.jp/view/item/500');
+  });
+
+  it('returns empty array for HTML with no comparison tables', () => {
+    const html = `<html><body><p>No tables here</p></body></html>`;
+    const products = parseComparisonPage(html, 'panasonic');
+    expect(products.length).toBe(0);
+  });
+
+  it('skips rows without product links', () => {
+    const html = `
+      <html><body>
+        <table>
+          <tr><th>旧品番</th><th>買替（現行）機種</th><th>備考</th></tr>
+          <tr>
+            <td>FY-10A</td>
+            <td><a href="/view/item/600">FY-17S7</a></td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>FY-OLD</td>
+            <td>廃止（代替なし）</td>
+            <td>生産終了</td>
+          </tr>
+        </table>
+      </body></html>
+    `;
+
+    const products = parseComparisonPage(html, 'panasonic');
+    expect(products.length).toBe(1);
+    expect(products[0].model_number).toBe('FY-17S7');
   });
 });

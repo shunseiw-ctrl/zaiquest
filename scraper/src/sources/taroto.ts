@@ -36,6 +36,21 @@ const CATEGORIES = [
   { path: 'kanki-kitchen', slug: 'range-hood', label: 'レンジフード' },
   { path: 'kanki-bath', slug: 'bathroom-dryer', label: '浴室乾燥機' },
   { path: 'kanki-kabe', slug: 'ventilation-fan', label: '壁付換気扇' },
+  { path: 'kanki-mado', slug: 'ventilation-fan', label: '窓用換気扇' },
+  { path: 'kanki-netu', slug: 'heat-exchange-fan', label: '空調・熱交換型換気扇' },
+  { path: 'kanki-system', slug: 'ventilation-system', label: '換気システム・中間ダクトファン' },
+  { path: 'kanki-yuuatu', slug: 'industrial-fan', label: '有圧・産業用換気扇' },
+  { path: 'kanki-souhuu', slug: 'duct-blower', label: 'ダクト用送風機' },
+  { path: 'kanki-seijyou', slug: 'air-purifier', label: '空気清浄機' },
+  { path: 'kanki-remocon', slug: 'ventilation-controller', label: 'スイッチ・コントローラー' },
+  { path: 'kanki-buzai', slug: 'ventilation-parts', label: 'システム部材・フード' },
+] as const;
+
+/** Comparison table (対比表) page definitions - old→new model replacement guides */
+const COMPARISON_PAGES = [
+  { path: 'taihi1', manufacturer: 'panasonic', label: 'パナソニック対比表' },
+  { path: 'taihi2', manufacturer: 'toshiba', label: '東芝対比表' },
+  { path: 'taihi3', manufacturer: 'mitsubishi', label: '三菱対比表' },
 ] as const;
 
 /** Map manufacturer names to slugs */
@@ -146,6 +161,71 @@ export function parseListingPage(
   return products;
 }
 
+/** Parse comparison table page (対比表) to extract replacement model products */
+export function parseComparisonPage(
+  html: string,
+  manufacturerSlug: string,
+): RawProduct[] {
+  const $ = cheerio.load(html);
+  const products: RawProduct[] = [];
+  const seen = new Set<string>();
+
+  // Comparison tables have rows: old model | new model (linked) | notes
+  $('table tr').each((_, row) => {
+    const $cells = $(row).find('td');
+    if ($cells.length < 2) return;
+
+    // The replacement model cell contains links to product detail pages
+    $cells.each((_, cell) => {
+      $(cell).find('a[href*="/view/item/"]').each((_, link) => {
+        const $link = $(link);
+        const href = $link.attr('href') || '';
+        const text = $link.text().trim();
+
+        if (!text || text.length < 3) return;
+
+        const itemId = href.match(/\/view\/item\/(\d+)/)?.[1];
+        if (!itemId || seen.has(itemId)) return;
+        seen.add(itemId);
+
+        const modelNumber = extractModelNumber(text);
+        if (!modelNumber) return;
+
+        // Get old model numbers from the first cell (predecessor info)
+        // Replace <br> tags with newlines before extracting text
+        const $firstCell = $($cells.first());
+        $firstCell.find('br').replaceWith('\n');
+        const firstCellText = $firstCell.text().trim();
+        const predecessorModels = firstCellText
+          .split(/[,\n]+/)
+          .map(s => s.trim())
+          .filter(s => /^[A-Z]{1,5}[\-]?\d/i.test(s));
+
+        // Get notes from the last cell
+        const notesCell = $cells.length >= 3 ? $($cells.last()).text().trim() : null;
+
+        const productUrl = href.startsWith('http') ? href : `${BASE_URL}${href.split('?')[0]}`;
+
+        products.push({
+          model_number: modelNumber,
+          name: text,
+          manufacturer_slug: manufacturerSlug,
+          category_slug: 'ventilation-fan',
+          street_price: null,
+          product_url: productUrl,
+          image_url: null,
+          source: 'taroto',
+          source_id: itemId,
+          predecessor_model: predecessorModels.length > 0 ? predecessorModels[0] : null,
+          raw_data: notesCell ? { taihi_note: notesCell } : null,
+        });
+      });
+    });
+  });
+
+  return products;
+}
+
 /** Get total page count from listing page */
 function getPageCount(html: string): number {
   const $ = cheerio.load(html);
@@ -209,6 +289,30 @@ export async function scrapeTaroto(): Promise<TarotoScrapingResult> {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`Failed category ${category.path}: ${msg}`);
+    }
+  }
+
+  // Scrape comparison table pages (対比表) for replacement model data
+  for (const taihi of COMPARISON_PAGES) {
+    try {
+      const url = `${BASE_URL}/view/page/${taihi.path}`;
+      console.log(`[Taroto] Fetching comparison table: ${taihi.label} (${taihi.path})`);
+
+      const html = await fetchPage(url);
+      const products = parseComparisonPage(html, taihi.manufacturer);
+      let added = 0;
+      for (const p of products) {
+        if (!seenModels.has(p.model_number)) {
+          seenModels.add(p.model_number);
+          allProducts.push(p);
+          added++;
+        }
+      }
+
+      console.log(`[Taroto] ${taihi.label}: ${products.length} products found, ${added} new`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Failed comparison page ${taihi.path}: ${msg}`);
     }
   }
 

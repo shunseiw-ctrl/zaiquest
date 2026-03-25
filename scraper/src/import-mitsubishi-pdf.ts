@@ -180,7 +180,7 @@ const circulationFans: RawProduct[] = [
 // ============================================================
 // メイン処理
 // ============================================================
-async function main() {
+export async function importMitsubishiPdf() {
   const allProducts: RawProduct[] = [
     ...pipeFans100,
     ...pipeFans150,
@@ -209,7 +209,10 @@ async function main() {
   console.log(`[Mitsubishi PDF Import] Upload result:`, result);
 }
 
-main().catch((e) => {
-  console.error('[Mitsubishi PDF Import] Fatal error:', e);
-  process.exit(1);
-});
+// Allow direct execution: npx tsx src/import-mitsubishi-pdf.ts
+if (process.argv[1]?.endsWith('import-mitsubishi-pdf.ts') || process.argv[1]?.endsWith('import-mitsubishi-pdf.js')) {
+  importMitsubishiPdf().catch((e) => {
+    console.error('[Mitsubishi PDF Import] Fatal error:', e);
+    process.exit(1);
+  });
+}

@@ -1,4 +1,5 @@
 import { chromium, Page } from 'playwright';
+import { createClient } from '@supabase/supabase-js';
 import { RawProduct } from '../normalizer.js';
 
 const WINK_BASE = 'https://www.mitsubishielectric.co.jp/ldg/wink/';
@@ -268,4 +269,178 @@ export async function scrapeMitsubishiWink(): Promise<MitsubishiWinkScrapingResu
 
   console.log(`\nMitsubishi WINK: total unique products scraped: ${products.length}`);
   return { products, errors };
+}
+
+/** Extract spec data from a WINK product detail page */
+async function extractDetailSpecs(page: Page): Promise<{
+  airflow: string | null;
+  noise_level: string | null;
+  power_consumption: string | null;
+  dimensions: string | null;
+  voltage: string | null;
+}> {
+  return page.evaluate(() => {
+    const specs: Record<string, string> = {};
+
+    // WINK detail pages display specs in a table or definition list
+    // Try table rows first (th/td pairs)
+    const rows = document.querySelectorAll('table tr');
+    for (const row of rows) {
+      const th = row.querySelector('th');
+      const td = row.querySelector('td');
+      if (th && td) {
+        const label = th.textContent?.trim() || '';
+        const value = td.textContent?.trim() || '';
+        if (label && value) specs[label] = value;
+      }
+    }
+
+    // Also try dt/dd pairs
+    const dts = document.querySelectorAll('dt');
+    for (const dt of dts) {
+      const dd = dt.nextElementSibling;
+      if (dd?.tagName === 'DD') {
+        const label = dt.textContent?.trim() || '';
+        const value = dd.textContent?.trim() || '';
+        if (label && value) specs[label] = value;
+      }
+    }
+
+    // Map Japanese labels to spec fields
+    let airflow: string | null = null;
+    let noise_level: string | null = null;
+    let power_consumption: string | null = null;
+    let dimensions: string | null = null;
+    let voltage: string | null = null;
+
+    for (const [label, value] of Object.entries(specs)) {
+      const l = label.toLowerCase();
+      if (l.includes('風量') || l.includes('換気風量')) {
+        airflow = value;
+      } else if (l.includes('騒音') || l.includes('運転音')) {
+        noise_level = value;
+      } else if (l.includes('消費電力')) {
+        power_consumption = value;
+      } else if (l.includes('外形寸法') || l.includes('寸法')) {
+        dimensions = value;
+      } else if (l.includes('電源') || l.includes('電圧')) {
+        voltage = value;
+      }
+    }
+
+    return { airflow, noise_level, power_consumption, dimensions, voltage };
+  });
+}
+
+/** Scrape detail pages for existing WINK products in the DB to fill spec data */
+export async function scrapeMitsubishiWinkDetailPages(): Promise<{
+  updated: number;
+  errors: string[];
+}> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  }
+  const supabase = createClient(url, key);
+
+  // Fetch WINK products that are missing spec data
+  const { data: products, error: fetchError } = await supabase
+    .from('products')
+    .select('id, model_number, product_url, airflow, noise_level, power_consumption, raw_data')
+    .eq('source', 'mitsubishi_wink')
+    .or('airflow.is.null,noise_level.is.null,power_consumption.is.null');
+
+  if (fetchError || !products) {
+    throw new Error(`Failed to fetch WINK products: ${fetchError?.message}`);
+  }
+
+  if (products.length === 0) {
+    console.log('[WINK Detail] スペック未取得の製品はありません');
+    return { updated: 0, errors: [] };
+  }
+
+  console.log(`[WINK Detail] スペック未取得の製品: ${products.length}件`);
+
+  const errors: string[] = [];
+  let updated = 0;
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+
+  try {
+    const page = await context.newPage();
+
+    // Agree to terms first
+    await agreeToTerms(page);
+
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+      const productUrl = product.product_url;
+
+      if (!productUrl) {
+        errors.push(`${product.model_number}: product_url が未設定`);
+        continue;
+      }
+
+      console.log(`[WINK Detail] (${i + 1}/${products.length}) ${product.model_number}`);
+
+      try {
+        await page.goto(productUrl, { waitUntil: 'networkidle', timeout: 30000 });
+        await sleep(DELAY_MS);
+
+        const specs = await extractDetailSpecs(page);
+
+        // Build update payload — only update null fields
+        const updateData: Record<string, unknown> = {};
+        if (product.airflow == null && specs.airflow) {
+          // Extract numeric value from airflow string (e.g., "75m³/h" → 75)
+          const match = specs.airflow.match(/(\d+)/);
+          if (match) updateData.airflow = parseInt(match[1], 10);
+        }
+        if (product.noise_level == null && specs.noise_level) {
+          const match = specs.noise_level.match(/(\d+(\.\d+)?)/);
+          if (match) updateData.noise_level = parseFloat(match[1]);
+        }
+        if (product.power_consumption == null && specs.power_consumption) {
+          const match = specs.power_consumption.match(/(\d+(\.\d+)?)/);
+          if (match) updateData.power_consumption = parseFloat(match[1]);
+        }
+
+        // Store raw spec data for reference
+        const rawData = (product.raw_data as Record<string, unknown>) || {};
+        rawData.wink_detail_specs = specs;
+        updateData.raw_data = rawData;
+
+        if (Object.keys(updateData).length > 1) {
+          // More than just raw_data
+          updateData.updated_at = new Date().toISOString();
+          const { error: updateError } = await supabase
+            .from('products')
+            .update(updateData)
+            .eq('id', product.id);
+
+          if (updateError) {
+            errors.push(`${product.model_number}: DB更新エラー: ${updateError.message}`);
+          } else {
+            updated++;
+            const fields = Object.keys(updateData).filter((k) => k !== 'raw_data' && k !== 'updated_at');
+            console.log(`  → ${fields.join(', ')} を更新`);
+          }
+        } else {
+          // Only raw_data update (no numeric specs found)
+          await supabase.from('products').update(updateData).eq('id', product.id);
+          console.log(`  → スペック値の抽出なし（raw_dataのみ保存）`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`${product.model_number}: 詳細ページ取得エラー: ${msg}`);
+        console.error(`  → エラー: ${msg}`);
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+
+  console.log(`[WINK Detail] 完了: ${updated}件更新, ${errors.length}件エラー`);
+  return { updated, errors };
 }

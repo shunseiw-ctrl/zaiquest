@@ -2,13 +2,14 @@ import 'dotenv/config';
 import { scrapeTaroto, scrapeDetailPages } from './sources/taroto.js';
 import { scrapePanasonic, scrapePanasonicDetailPages } from './sources/panasonic.js';
 import { scrapeToshiba, scrapeToshibaDetailPages } from './sources/toshiba.js';
-import { scrapeMitsubishiWink } from './sources/mitsubishi-wink.js';
+import { scrapeMitsubishiWink, scrapeMitsubishiWinkDetailPages } from './sources/mitsubishi-wink.js';
+import { importMitsubishiPdf } from './import-mitsubishi-pdf.js';
 import { crossReferenceSpecs } from './cross-reference.js';
 import { normalize, RawProduct } from './normalizer.js';
 import { uploadProducts } from './uploader.js';
 
-type SourceName = 'taroto' | 'panasonic' | 'toshiba' | 'mitsubishi-wink' | 'all';
-type DetailSourceName = 'taroto' | 'toshiba' | 'panasonic';
+type SourceName = 'taroto' | 'panasonic' | 'toshiba' | 'mitsubishi-wink' | 'mitsubishi-pdf' | 'all';
+type DetailSourceName = 'taroto' | 'toshiba' | 'panasonic' | 'mitsubishi-wink';
 
 async function scrapeSource(source: SourceName): Promise<{
   products: RawProduct[];
@@ -23,12 +24,16 @@ async function scrapeSource(source: SourceName): Promise<{
       return scrapeToshiba();
     case 'mitsubishi-wink':
       return scrapeMitsubishiWink();
+    case 'mitsubishi-pdf':
+      // PDF import handles its own normalize+upload cycle; return empty for main flow
+      await importMitsubishiPdf();
+      return { products: [], errors: [] };
     case 'all': {
+      // HTTP scrapers run in parallel
       const results = await Promise.allSettled([
         scrapeTaroto(),
         scrapePanasonic(),
         scrapeToshiba(),
-        // mitsubishi-wink requires Playwright, run separately
       ]);
 
       const products: RawProduct[] = [];
@@ -41,6 +46,18 @@ async function scrapeSource(source: SourceName): Promise<{
         } else {
           errors.push(`Source failed: ${result.reason}`);
         }
+      }
+
+      // WINK uses Playwright — run sequentially after HTTP scrapers
+      console.log('[ZAIQUEST Scraper] Playwright起動: mitsubishi-wink スクレイピング開始...');
+      try {
+        const winkResult = await scrapeMitsubishiWink();
+        products.push(...winkResult.products);
+        errors.push(...winkResult.errors);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`mitsubishi-wink failed: ${msg}`);
+        console.error(`[ZAIQUEST Scraper] mitsubishi-wink エラー: ${msg}`);
       }
 
       return { products, errors };
@@ -85,6 +102,10 @@ async function main() {
         break;
       case 'panasonic':
         result = await scrapePanasonicDetailPages();
+        break;
+      case 'mitsubishi-wink':
+        console.log('[ZAIQUEST Scraper] Playwright起動: WINK詳細ページスクレイピング...');
+        result = await scrapeMitsubishiWinkDetailPages();
         break;
     }
 

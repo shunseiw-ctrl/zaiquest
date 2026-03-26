@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/comparison_providers.dart';
 import '../../providers/product_providers.dart';
+import '../../../core/utils/error_helpers.dart';
 import 'widgets/comparison_bottom_bar.dart';
 import 'widgets/search_bar_widget.dart';
 import 'widgets/filter_panel.dart';
@@ -154,7 +155,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     const Icon(Icons.error_outline,
                         size: 64, color: Colors.red),
                     const SizedBox(height: 16),
-                    Text('エラー: $error'),
+                    Text(friendlyErrorMessage(error)),
                     const SizedBox(height: 8),
                     ElevatedButton(
                       onPressed: () =>
@@ -209,6 +210,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
           const Spacer(),
           PopupMenuButton<String>(
+            tooltip: '並び替え',
             onSelected: (value) {
               final notifier =
                   ref.read(searchFilterNotifierProvider.notifier);

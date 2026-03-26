@@ -14,7 +14,9 @@ class SupabaseProductDatasource {
   ) {
     // Text search on model_number
     if (filter.query != null && filter.query!.isNotEmpty) {
-      query = query.ilike('model_number', '%${filter.query}%');
+      final escaped =
+          filter.query!.replaceAll('%', '\\%').replaceAll('_', '\\_');
+      query = query.ilike('model_number', '%$escaped%');
     }
 
     // Dimension filters

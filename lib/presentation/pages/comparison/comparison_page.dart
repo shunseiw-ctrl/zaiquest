@@ -6,11 +6,26 @@ import 'package:go_router/go_router.dart';
 import '../../../domain/entities/product.dart';
 import '../../providers/comparison_providers.dart';
 
-class ComparisonPage extends ConsumerWidget {
+class ComparisonPage extends ConsumerStatefulWidget {
   const ComparisonPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ComparisonPage> createState() => _ComparisonPageState();
+}
+
+class _ComparisonPageState extends ConsumerState<ComparisonPage> {
+  final _verticalController = ScrollController();
+  final _headerVerticalController = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalController.dispose();
+    _headerVerticalController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final products = ref.watch(comparisonSelectionProvider);
     final theme = Theme.of(context);
 
@@ -47,9 +62,6 @@ class ComparisonPage extends ConsumerWidget {
     List<_SpecRow> specs,
     ThemeData theme,
   ) {
-    final verticalController = ScrollController();
-    final headerVerticalController = ScrollController();
-
     return Row(
       children: [
         // Fixed label column
@@ -65,14 +77,14 @@ class ComparisonPage extends ConsumerWidget {
                 child: NotificationListener<ScrollNotification>(
                   onNotification: (notification) {
                     if (notification is ScrollUpdateNotification) {
-                      verticalController.jumpTo(
-                        headerVerticalController.offset,
+                      _verticalController.jumpTo(
+                        _headerVerticalController.offset,
                       );
                     }
                     return false;
                   },
                   child: ListView.builder(
-                    controller: headerVerticalController,
+                    controller: _headerVerticalController,
                     itemCount: specs.length,
                     itemBuilder: (context, index) {
                       return Container(
@@ -121,7 +133,7 @@ class ComparisonPage extends ConsumerWidget {
                   // Spec values
                   Expanded(
                     child: ListView.builder(
-                      controller: verticalController,
+                      controller: _verticalController,
                       itemCount: specs.length,
                       itemBuilder: (context, index) {
                         return SizedBox(
@@ -187,12 +199,16 @@ class ComparisonPage extends ConsumerWidget {
                   width: 60,
                   height: 60,
                   child: product.imageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: product.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const Icon(
-                              Icons.inventory_2,
-                              color: Colors.grey),
+                      ? Semantics(
+                          image: true,
+                          label: product.modelNumber,
+                          child: CachedNetworkImage(
+                            imageUrl: product.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => const Icon(
+                                Icons.inventory_2,
+                                color: Colors.grey),
+                          ),
                         )
                       : const Icon(Icons.inventory_2, color: Colors.grey),
                 ),

@@ -44,6 +44,7 @@ class _SearchBarWidgetState extends ConsumerState<SearchBarWidget> {
               suffixIcon: _controller.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
+                      tooltip: '検索をクリア',
                       onPressed: () {
                         _debounceTimer?.cancel();
                         _controller.clear();

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/favorite_providers.dart';
 import '../../providers/product_providers.dart';
+import '../../../core/utils/error_helpers.dart';
 import '../search/widgets/product_card.dart';
 
 class FavoritesPage extends ConsumerWidget {
@@ -83,11 +84,21 @@ class FavoritesPage extends ConsumerWidget {
                 color: Colors.red,
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
-              onDismissed: (_) async {
-                final userId = ref.read(currentUserIdProvider)!;
-                final repo = ref.read(productRepositoryProvider);
-                await repo.removeFavorite(userId, product.id);
-                ref.invalidate(userFavoritesProvider);
+              confirmDismiss: (_) async {
+                try {
+                  final userId = ref.read(currentUserIdProvider)!;
+                  final repo = ref.read(productRepositoryProvider);
+                  await repo.removeFavorite(userId, product.id);
+                  ref.invalidate(userFavoritesProvider);
+                  return true;
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(friendlyErrorMessage(e))),
+                    );
+                  }
+                  return false;
+                }
               },
               child: ProductCard(
                 product: product,
@@ -98,7 +109,7 @@ class FavoritesPage extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Center(child: Text('エラー: $error')),
+      error: (error, _) => Center(child: Text(friendlyErrorMessage(error))),
     );
   }
 }

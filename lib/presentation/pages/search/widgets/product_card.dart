@@ -42,9 +42,12 @@ class ProductCard extends StatelessWidget {
                   width: 80,
                   height: 80,
                   child: product.imageUrl != null
-                      ? CachedNetworkImage(
-                          imageUrl: product.imageUrl!,
-                          fit: BoxFit.cover,
+                      ? Semantics(
+                          image: true,
+                          label: '${product.name} の画像',
+                          child: CachedNetworkImage(
+                            imageUrl: product.imageUrl!,
+                            fit: BoxFit.cover,
                           placeholder: (_, __) => Container(
                             color: Colors.grey[200],
                             child: const Icon(Icons.image, color: Colors.grey),
@@ -54,6 +57,7 @@ class ProductCard extends StatelessWidget {
                             child: const Icon(Icons.broken_image,
                                 color: Colors.grey),
                           ),
+                        ),
                         )
                       : Container(
                           color: Colors.grey[200],

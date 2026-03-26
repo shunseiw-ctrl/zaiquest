@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/favorite_providers.dart';
 import '../../providers/memo_providers.dart';
 import '../../providers/product_providers.dart';
+import '../../../core/utils/error_helpers.dart';
 import '../../../domain/entities/user_memo.dart';
 
 class ProductDetailPage extends ConsumerStatefulWidget {
@@ -58,12 +59,16 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                   Center(
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: product.imageUrl!,
-                        height: 200,
-                        fit: BoxFit.contain,
-                        errorWidget: (_, __, ___) =>
-                            const Icon(Icons.broken_image, size: 100),
+                      child: Semantics(
+                        image: true,
+                        label: product.name,
+                        child: CachedNetworkImage(
+                          imageUrl: product.imageUrl!,
+                          height: 200,
+                          fit: BoxFit.contain,
+                          errorWidget: (_, __, ___) =>
+                              const Icon(Icons.broken_image, size: 100),
+                        ),
                       ),
                     ),
                   ),
@@ -199,7 +204,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('エラー: $error')),
+        error: (error, _) => Center(child: Text(friendlyErrorMessage(error))),
       ),
     );
   }
@@ -225,16 +230,24 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   }
 
   Future<void> _toggleFavorite(bool currentlyFavorite) async {
-    final userId = ref.read(currentUserIdProvider)!;
-    final repo = ref.read(productRepositoryProvider);
+    try {
+      final userId = ref.read(currentUserIdProvider)!;
+      final repo = ref.read(productRepositoryProvider);
 
-    if (currentlyFavorite) {
-      await repo.removeFavorite(userId, widget.productId);
-    } else {
-      await repo.addFavorite(userId, widget.productId);
+      if (currentlyFavorite) {
+        await repo.removeFavorite(userId, widget.productId);
+      } else {
+        await repo.addFavorite(userId, widget.productId);
+      }
+      ref.invalidate(isFavoriteProvider(widget.productId));
+      ref.invalidate(userFavoritesProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyErrorMessage(e))),
+        );
+      }
     }
-    ref.invalidate(isFavoriteProvider(widget.productId));
-    ref.invalidate(userFavoritesProvider);
   }
 
   Widget _buildMemoSection(ThemeData theme, String userId) {
@@ -343,35 +356,71 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
   }
 
   Future<void> _saveMemo(String userId) async {
-    final repo = ref.read(memoRepositoryProvider);
-    await repo.saveMemo(UserMemo(
-      id: '',
-      userId: userId,
-      productId: widget.productId,
-      quantity: _quantity,
-      note: _noteController.text.trim(),
-    ));
-    ref.invalidate(productMemoProvider(widget.productId));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('メモを保存しました')),
-      );
+    try {
+      final repo = ref.read(memoRepositoryProvider);
+      await repo.saveMemo(UserMemo(
+        id: '',
+        userId: userId,
+        productId: widget.productId,
+        quantity: _quantity,
+        note: _noteController.text.trim(),
+      ));
+      ref.invalidate(productMemoProvider(widget.productId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('メモを保存しました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyErrorMessage(e))),
+        );
+      }
     }
   }
 
   Future<void> _deleteMemo(String userId) async {
-    final repo = ref.read(memoRepositoryProvider);
-    await repo.deleteMemo(userId, widget.productId);
-    setState(() {
-      _quantity = 1;
-      _noteController.clear();
-      _memoLoaded = false;
-    });
-    ref.invalidate(productMemoProvider(widget.productId));
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('メモを削除しました')),
-      );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('メモを削除'),
+        content: const Text('このメモを削除しますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final repo = ref.read(memoRepositoryProvider);
+      await repo.deleteMemo(userId, widget.productId);
+      setState(() {
+        _quantity = 1;
+        _noteController.clear();
+        _memoLoaded = false;
+      });
+      ref.invalidate(productMemoProvider(widget.productId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('メモを削除しました')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyErrorMessage(e))),
+        );
+      }
     }
   }
 

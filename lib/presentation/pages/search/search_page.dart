@@ -254,7 +254,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       return IconButton(
         icon: const Icon(Icons.person),
         tooltip: 'アカウント',
-        onPressed: () => _showLogoutDialog(context, ref),
+        onPressed: () => context.push('/account'),
       );
     }
     return IconButton(
@@ -264,26 +264,4 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
   }
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('ログアウト'),
-        content: const Text('ログアウトしますか？'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('キャンセル'),
-          ),
-          FilledButton(
-            onPressed: () {
-              ref.read(authNotifierProvider.notifier).signOut();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('ログアウト'),
-          ),
-        ],
-      ),
-    );
-  }
 }

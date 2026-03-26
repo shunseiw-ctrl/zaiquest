@@ -8,6 +8,7 @@ import '../../presentation/pages/search/search_page.dart';
 import '../../presentation/pages/detail/product_detail_page.dart';
 import '../../presentation/pages/comparison/comparison_page.dart';
 import '../../presentation/pages/favorites/favorites_page.dart';
+import '../../presentation/pages/account/account_page.dart';
 import '../../presentation/providers/auth_provider.dart';
 
 part 'app_router.g.dart';
@@ -62,6 +63,10 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(
         path: '/favorites',
         builder: (context, state) => const FavoritesPage(),
+      ),
+      GoRoute(
+        path: '/account',
+        builder: (context, state) => const AccountPage(),
       ),
     ],
   );

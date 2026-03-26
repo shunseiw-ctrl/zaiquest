@@ -36,6 +36,12 @@ class AuthNotifier extends _$AuthNotifier {
   Future<void> signOut() async {
     await Supabase.instance.client.auth.signOut();
   }
+
+  Future<void> deleteAccount() async {
+    final client = Supabase.instance.client;
+    await client.rpc('delete_user_account');
+    await client.auth.signOut();
+  }
 }
 
 @riverpod

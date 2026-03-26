@@ -21,7 +21,9 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
+    return Semantics(
+      label: '${product.manufacturerName ?? ""} ${product.modelNumber} ${product.name}',
+      child: Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Stack(
         children: [
@@ -211,6 +213,7 @@ class ProductCard extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 

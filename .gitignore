@@ -48,6 +48,11 @@ app.*.map.json
 .env
 .env.local
 
+# Android signing
+*.jks
+*.keystore
+android/key.properties
+
 # Scraper
 scraper/node_modules/
 scraper/dist/

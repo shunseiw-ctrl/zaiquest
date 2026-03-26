@@ -213,6 +213,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
           isFav ? Icons.favorite : Icons.favorite_border,
           color: isFav ? Colors.red : null,
         ),
+        tooltip: isFav ? 'お気に入りから削除' : 'お気に入りに追加',
         onPressed: () => _toggleFavorite(isFav),
       ),
       loading: () => const IconButton(
@@ -264,6 +265,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                     const Spacer(),
                     IconButton.filled(
                       icon: const Icon(Icons.remove, size: 18),
+                      tooltip: '数量を減らす',
                       onPressed: _quantity > 1
                           ? () => setState(() => _quantity--)
                           : null,
@@ -282,6 +284,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                     ),
                     IconButton.filled(
                       icon: const Icon(Icons.add, size: 18),
+                      tooltip: '数量を増やす',
                       onPressed: () => setState(() => _quantity++),
                       style: IconButton.styleFrom(
                         minimumSize: const Size(36, 36),

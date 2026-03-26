@@ -31,6 +31,9 @@ dependencies:
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
 
+  # Crash Reporting
+  sentry_flutter: ^8.12.0
+
   # UI
   cached_network_image: ^3.4.1
   flutter_svg: ^2.0.17
@@ -52,6 +55,31 @@ dev_dependencies:
 
   # Testing
   mocktail: ^1.0.4
+
+  # App Icon
+  flutter_launcher_icons: ^0.14.3
+
+  # Splash Screen
+  flutter_native_splash: ^2.4.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  web:
+    generate: false
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/splash/splash_logo.png"
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/splash/splash_logo.png"
+  ios: true
+  web: false
 
 flutter:
   uses-material-design: true

@@ -57,6 +57,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.favorite_outline),
+            tooltip: 'お気に入り一覧',
             onPressed: () => context.push('/favorites'),
           ),
           _buildUserIcon(context, ref),
@@ -250,11 +251,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (userId != null) {
       return IconButton(
         icon: const Icon(Icons.person),
+        tooltip: 'アカウント',
         onPressed: () => _showLogoutDialog(context, ref),
       );
     }
     return IconButton(
       icon: const Icon(Icons.person_outline),
+      tooltip: 'ログイン',
       onPressed: () => context.push('/login'),
     );
   }

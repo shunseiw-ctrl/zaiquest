@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
@@ -13,11 +14,22 @@ Future<void> main() async {
     anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
   );
 
-  runApp(
-    const ProviderScope(
-      child: ZaiquestApp(),
-    ),
-  );
+  const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
+  if (sentryDsn.isNotEmpty) {
+    await SentryFlutter.init(
+      (options) {
+        options.dsn = sentryDsn;
+        options.tracesSampleRate = 0.2;
+        options.attachScreenshot = true;
+      },
+      appRunner: () => runApp(
+        const ProviderScope(child: ZaiquestApp()),
+      ),
+    );
+  } else {
+    runApp(const ProviderScope(child: ZaiquestApp()));
+  }
 }
 
 class ZaiquestApp extends ConsumerWidget {

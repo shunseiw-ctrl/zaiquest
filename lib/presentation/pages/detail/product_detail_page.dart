@@ -204,7 +204,22 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text(friendlyErrorMessage(error))),
+        error: (error, _) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(friendlyErrorMessage(error)),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () =>
+                    ref.invalidate(productDetailProvider(widget.productId)),
+                child: const Text('再試行'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

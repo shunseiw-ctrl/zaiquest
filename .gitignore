@@ -45,8 +45,8 @@ app.*.map.json
 /android/app/release
 
 # Environment
-.env
-.env.local
+**/.env
+**/.env.local
 
 # Android signing
 *.jks

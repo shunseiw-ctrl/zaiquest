@@ -33,6 +33,14 @@ class AuthNotifier extends _$AuthNotifier {
     );
   }
 
+  Future<void> signUp(String email, String password) async {
+    await Supabase.instance.client.auth.signUp(
+      email: email,
+      password: password,
+      emailRedirectTo: 'io.supabase.zaiquest://login-callback',
+    );
+  }
+
   Future<void> signOut() async {
     await Supabase.instance.client.auth.signOut();
   }

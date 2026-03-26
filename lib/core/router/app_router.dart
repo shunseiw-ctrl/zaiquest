@@ -30,8 +30,8 @@ GoRouter appRouter(AppRouterRef ref) {
       final isLoggedIn = authState.value != null;
       final isLoginRoute = state.matchedLocation == '/login';
 
-      // Favorites requires auth
-      if (state.matchedLocation == '/favorites' && !isLoggedIn) {
+      // Favorites and Account require auth
+      if ((state.matchedLocation == '/favorites' || state.matchedLocation == '/account') && !isLoggedIn) {
         return '/login';
       }
       // Already logged in, no need to show login page

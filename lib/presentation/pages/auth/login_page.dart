@@ -45,6 +45,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _isLoading = false;
   bool _useMagicLink = false;
   bool _magicLinkSent = false;
+  bool _isSignUp = false;
+  bool _signUpComplete = false;
 
   @override
   void dispose() {
@@ -71,6 +73,40 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await ref
           .read(authNotifierProvider.notifier)
           .signInWithPassword(email, password);
+    } catch (e) {
+      if (mounted) {
+        _showError(_friendlyAuthError(e));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signUp() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty) {
+      _showError('メールアドレスを入力してください');
+      return;
+    }
+    if (password.isEmpty) {
+      _showError('パスワードを入力してください');
+      return;
+    }
+    if (password.length < 6) {
+      _showError('パスワードは6文字以上で入力してください');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(authNotifierProvider.notifier)
+          .signUp(email, password);
+      if (mounted) {
+        setState(() => _signUpComplete = true);
+      }
     } catch (e) {
       if (mounted) {
         _showError(_friendlyAuthError(e));
@@ -118,7 +154,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         padding: const EdgeInsets.all(24),
         child: _magicLinkSent
             ? _buildSentView(theme)
-            : _buildFormView(theme),
+            : _signUpComplete
+                ? _buildSignUpCompleteView(theme)
+                : _buildFormView(theme),
       ),
     );
   }
@@ -152,6 +190,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
+  Widget _buildSignUpCompleteView(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const SizedBox(height: 80),
+          Icon(Icons.mark_email_read,
+              size: 64, color: theme.colorScheme.primary),
+          const SizedBox(height: 24),
+          Text('確認メールを送信しました',
+              style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 12),
+          Text(
+            '${_emailController.text} に確認メールを送信しました。\nメール内のリンクをタップしてアカウントを有効化してください。',
+            textAlign: TextAlign.center,
+            style:
+                theme.textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 32),
+          TextButton(
+            onPressed: () =>
+                setState(() { _signUpComplete = false; _isSignUp = false; }),
+            child: const Text('ログイン画面に戻る'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFormView(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -159,7 +226,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         const SizedBox(height: 60),
         Icon(Icons.lock_outline, size: 64, color: theme.colorScheme.primary),
         const SizedBox(height: 24),
-        Text('ZAIQUESTにログイン',
+        Text(_isSignUp ? '新規アカウント作成' : 'ZAIQUESTにログイン',
             style: theme.textTheme.headlineSmall,
             textAlign: TextAlign.center),
         const SizedBox(height: 32),
@@ -174,37 +241,53 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           onSubmitted: (_) =>
               _useMagicLink ? _sendMagicLink() : _signInWithPassword(),
         ),
-        if (!_useMagicLink) ...[
+        if (!_useMagicLink || _isSignUp) ...[
           const SizedBox(height: 12),
           TextField(
             controller: _passwordController,
             obscureText: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'パスワード',
-              prefixIcon: Icon(Icons.lock_outlined),
+              prefixIcon: const Icon(Icons.lock_outlined),
+              helperText: _isSignUp ? '6文字以上' : null,
             ),
-            onSubmitted: (_) => _signInWithPassword(),
+            onSubmitted: (_) => _isSignUp ? _signUp() : _signInWithPassword(),
           ),
         ],
         const SizedBox(height: 20),
         FilledButton(
           onPressed: _isLoading
               ? null
-              : (_useMagicLink ? _sendMagicLink : _signInWithPassword),
+              : _isSignUp
+                  ? _signUp
+                  : (_useMagicLink ? _sendMagicLink : _signInWithPassword),
           child: _isLoading
               ? const SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text(_useMagicLink ? 'マジックリンクを送信' : 'ログイン'),
+              : Text(_isSignUp
+                  ? 'アカウントを作成'
+                  : (_useMagicLink ? 'マジックリンクを送信' : 'ログイン')),
         ),
         const SizedBox(height: 12),
+        if (!_isSignUp)
+          TextButton(
+            onPressed: () => setState(() => _useMagicLink = !_useMagicLink),
+            child: Text(_useMagicLink
+                ? 'パスワードでログイン'
+                : 'マジックリンクでログイン'),
+          ),
+        const Divider(height: 32),
         TextButton(
-          onPressed: () => setState(() => _useMagicLink = !_useMagicLink),
-          child: Text(_useMagicLink
-              ? 'パスワードでログイン'
-              : 'マジックリンクでログイン'),
+          onPressed: () => setState(() {
+            _isSignUp = !_isSignUp;
+            _useMagicLink = false;
+          }),
+          child: Text(_isSignUp
+              ? 'アカウントをお持ちの方はこちら'
+              : 'アカウントをお持ちでない方はこちら'),
         ),
       ],
     );

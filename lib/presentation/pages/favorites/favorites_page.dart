@@ -90,6 +90,20 @@ class FavoritesPage extends ConsumerWidget {
                   final repo = ref.read(productRepositoryProvider);
                   await repo.removeFavorite(userId, product.id);
                   ref.invalidate(userFavoritesProvider);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('お気に入りから削除しました'),
+                        action: SnackBarAction(
+                          label: '元に戻す',
+                          onPressed: () async {
+                            await repo.addFavorite(userId, product.id);
+                            ref.invalidate(userFavoritesProvider);
+                          },
+                        ),
+                      ),
+                    );
+                  }
                   return true;
                 } catch (e) {
                   if (context.mounted) {

@@ -88,10 +88,12 @@ class AccountPage extends ConsumerWidget {
             child: const Text('キャンセル'),
           ),
           FilledButton(
-            onPressed: () {
-              ref.read(authNotifierProvider.notifier).signOut();
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              context.go('/');
+              await ref.read(authNotifierProvider.notifier).signOut();
+              if (context.mounted) {
+                context.go('/');
+              }
             },
             child: const Text('ログアウト'),
           ),

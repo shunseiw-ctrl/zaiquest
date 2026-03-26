@@ -78,7 +78,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
 
           // Filter panel
-          if (_showFilters) const FilterPanel(),
+          if (_showFilters)
+            const Flexible(child: SingleChildScrollView(child: FilterPanel())),
 
           // Result count + sort
           _buildResultBar(),

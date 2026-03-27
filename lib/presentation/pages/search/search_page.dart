@@ -77,10 +77,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ),
 
-          // Filter panel
+          // Filter panel (replaces results when open)
           if (_showFilters)
-            const Flexible(child: SingleChildScrollView(child: FilterPanel())),
-
+            const Expanded(child: SingleChildScrollView(child: FilterPanel()))
+          else ...[
           // Result count + sort
           _buildResultBar(),
 
@@ -168,6 +168,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               ),
             ),
           ),
+          ],
         ],
       ),
       bottomNavigationBar: comparisonSelection.isNotEmpty

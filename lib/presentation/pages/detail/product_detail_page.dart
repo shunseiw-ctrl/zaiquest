@@ -441,8 +441,14 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
+    try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('URLを開けませんでした')),
+        );
+      }
     }
   }
 

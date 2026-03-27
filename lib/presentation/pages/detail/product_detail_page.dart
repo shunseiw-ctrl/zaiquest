@@ -298,7 +298,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                           ? () => setState(() => _quantity--)
                           : null,
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(36, 36),
+                        minimumSize: const Size(44, 44),
                       ),
                     ),
                     Padding(
@@ -315,7 +315,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                       tooltip: '数量を増やす',
                       onPressed: () => setState(() => _quantity++),
                       style: IconButton.styleFrom(
-                        minimumSize: const Size(36, 36),
+                        minimumSize: const Size(44, 44),
                       ),
                     ),
                   ],
@@ -325,6 +325,7 @@ class _ProductDetailPageState extends ConsumerState<ProductDetailPage> {
                 TextField(
                   controller: _noteController,
                   maxLines: 3,
+                  maxLength: 500,
                   decoration: const InputDecoration(
                     labelText: 'メモ',
                     hintText: '例: 2F用、色指定あり',

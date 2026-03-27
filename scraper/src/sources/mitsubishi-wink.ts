@@ -203,8 +203,9 @@ export async function scrapeMitsubishiWink(): Promise<MitsubishiWinkScrapingResu
 
           for (const prod of pageProducts) {
             // Deduplicate by model number
-            if (seenModels.has(prod.modelNumber)) continue;
-            seenModels.add(prod.modelNumber);
+            const normalizedModel = prod.modelNumber.trim().toUpperCase();
+            if (seenModels.has(normalizedModel)) continue;
+            seenModels.add(normalizedModel);
 
             const productUrl = prod.detailUrl.startsWith('http')
               ? prod.detailUrl

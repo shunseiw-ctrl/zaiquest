@@ -1,8 +1,12 @@
+import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import { RawProduct } from '../normalizer.js';
 
 const BIZ_BASE = 'https://www2.panasonic.biz/jp/air/kanki/okikae';
 const DELAY_MS = 2000;
+
+/** Search prefixes for Panasonic ventilation products */
+const SEARCH_PREFIXES = ['FY-', 'FV-'];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -29,41 +33,87 @@ export interface PanasonicBizScrapingResult {
   errors: string[];
 }
 
-/** Extract all FY- model numbers from the list page */
-function parseListPage(html: string): string[] {
-  const $ = cheerio.load(html);
-  const modelNumbers: string[] = [];
+/** Use Playwright to load full list page (handles JS-rendered content) */
+async function fetchAllModelNumbers(): Promise<string[]> {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
   const seen = new Set<string>();
 
-  // Primary selector: links containing detail_hinban parameter
-  $('a[href*="detail_hinban"]').each((_, el) => {
-    const href = $(el).attr('href') || '';
-    const match = href.match(/detail_hinban=([A-Z0-9\-]+)/i);
-    if (match) {
-      const model = match[1].toUpperCase().trim();
-      if (!seen.has(model)) {
-        seen.add(model);
-        modelNumbers.push(model);
-      }
-    }
-  });
+  try {
+    const page = await context.newPage();
 
-  // Fallback: also extract from text content if href parsing missed some
-  if (modelNumbers.length === 0) {
-    $('li').each((_, el) => {
-      const text = $(el).text().trim();
-      const match = text.match(/^(FY-[A-Z0-9\-]+)/i);
-      if (match) {
-        const model = match[1].toUpperCase().trim();
-        if (!seen.has(model)) {
-          seen.add(model);
-          modelNumbers.push(model);
+    for (const prefix of SEARCH_PREFIXES) {
+      const url = `${BIZ_BASE}/result.php?search_hinban=${encodeURIComponent(prefix)}`;
+      console.log(`[Panasonic Biz] Loading list page for prefix "${prefix}"...`);
+
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
+      await sleep(3000);
+
+      // Scroll to bottom repeatedly to trigger infinite scroll / lazy loading
+      let previousHeight = 0;
+      let scrollAttempts = 0;
+      const MAX_SCROLL_ATTEMPTS = 50;
+
+      while (scrollAttempts < MAX_SCROLL_ATTEMPTS) {
+        const currentHeight = await page.evaluate(() => document.body.scrollHeight);
+        if (currentHeight === previousHeight) {
+          // Try one more scroll + wait to be sure
+          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          await sleep(3000);
+          const finalHeight = await page.evaluate(() => document.body.scrollHeight);
+          if (finalHeight === currentHeight) break;
+        }
+        previousHeight = currentHeight;
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        await sleep(2000);
+        scrollAttempts++;
+
+        if (scrollAttempts % 10 === 0) {
+          const currentCount = await page.evaluate(() =>
+            document.querySelectorAll('a[href*="detail_hinban"]').length
+          );
+          console.log(`[Panasonic Biz] Scroll ${scrollAttempts}: ${currentCount} links loaded`);
         }
       }
-    });
-  }
 
-  return modelNumbers;
+      // Extract all model numbers from the fully-loaded page
+      const models = await page.evaluate(() => {
+        const links = document.querySelectorAll('a[href*="detail_hinban"]');
+        const results: string[] = [];
+        for (const link of links) {
+          const href = link.getAttribute('href') || '';
+          const match = href.match(/detail_hinban=([A-Z0-9\-]+)/i);
+          if (match) results.push(match[1].toUpperCase().trim());
+        }
+        return results;
+      });
+
+      for (const model of models) {
+        seen.add(model);
+      }
+
+      console.log(`[Panasonic Biz] Prefix "${prefix}": ${models.length} links found, ${seen.size} unique total`);
+    }
+
+    // Also try extracting from page text as fallback (for non-link model numbers)
+    const page2 = await context.newPage();
+    await page2.goto(`${BIZ_BASE}/result.php?search_hinban=FY-`, { waitUntil: 'networkidle', timeout: 60000 });
+    await sleep(2000);
+
+    const textModels = await page2.evaluate(() => {
+      const text = document.body.innerText;
+      const matches = text.match(/FY-[A-Z0-9\-]+/gi) || [];
+      return matches.map((m) => m.toUpperCase().trim());
+    });
+
+    for (const model of textModels) {
+      seen.add(model);
+    }
+
+    return Array.from(seen);
+  } finally {
+    await browser.close();
+  }
 }
 
 interface DetailSpec {
@@ -100,18 +150,15 @@ function parseDetailPage(html: string): DetailSpec {
     if (!th || !td) return;
 
     if (th.includes('希望小売価格') || th.includes('本体希望') || th.includes('価格')) {
-      // Extract numeric price: "12,345円" → "12345"
       const priceMatch = td.match(/([0-9,]+)\s*円/);
       if (priceMatch) spec.listPrice = priceMatch[1].replace(/,/g, '');
     }
 
     if (th.includes('消費電力')) {
-      // May have 50Hz/60Hz values
       const match50 = td.match(/50Hz[：:\s]*([0-9.]+)/);
       const match60 = td.match(/60Hz[：:\s]*([0-9.]+)/);
       if (match50) spec.powerConsumption50 = match50[1];
       if (match60) spec.powerConsumption60 = match60[1];
-      // Single value fallback
       if (!match50 && !match60) {
         const single = td.match(/([0-9.]+)\s*W/);
         if (single) {
@@ -197,20 +244,19 @@ export async function scrapePanasonicBiz(options?: {
   const maxDetails = options?.maxDetails ?? 0;
   const resumeFrom = options?.resumeFrom ?? null;
 
-  // Step 1: Fetch all model numbers from list page
-  console.log('[Panasonic Biz] Fetching model list from result.php...');
+  // Step 1: Fetch all model numbers using Playwright (handles JS rendering)
+  console.log('[Panasonic Biz] Fetching model list with Playwright...');
   let allModels: string[];
   try {
-    const listHtml = await fetchPage(`${BIZ_BASE}/result.php?search_hinban=FY-`);
-    allModels = parseListPage(listHtml);
-    console.log(`[Panasonic Biz] Found ${allModels.length} model numbers on list page`);
+    allModels = await fetchAllModelNumbers();
+    console.log(`[Panasonic Biz] Found ${allModels.length} unique model numbers`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return { products, errors: [`Failed to fetch list page: ${msg}`] };
   }
 
   if (allModels.length === 0) {
-    return { products, errors: ['No model numbers found on list page — HTML structure may have changed'] };
+    return { products, errors: ['No model numbers found — HTML structure may have changed'] };
   }
 
   // Filter out already-known models
@@ -227,7 +273,7 @@ export async function scrapePanasonicBiz(options?: {
     }
   }
 
-  // Step 2: Fetch detail pages
+  // Step 2: Fetch detail pages (using fetch+cheerio for speed)
   const limit = maxDetails > 0 ? Math.min(startIdx + maxDetails, modelsToFetch.length) : modelsToFetch.length;
 
   for (let i = startIdx; i < limit; i++) {
@@ -244,7 +290,6 @@ export async function scrapePanasonicBiz(options?: {
 
       const isDiscontinued = spec.successorModel != null;
 
-      // Use 50Hz values as primary (eastern Japan standard)
       products.push({
         model_number: model,
         name: spec.remarks || `パナソニック ${model}`,
@@ -271,7 +316,6 @@ export async function scrapePanasonicBiz(options?: {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`${model}: ${msg}`);
-      // Log periodically
       if (errors.length <= 10 || errors.length % 50 === 0) {
         console.warn(`[Panasonic Biz] Error for ${model}: ${msg}`);
       }

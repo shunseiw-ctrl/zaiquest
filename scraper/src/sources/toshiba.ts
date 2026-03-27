@@ -63,6 +63,21 @@ const CATEGORIES = [
     slug: 'ventilation-fan',
     label: '空調換気扇',
   },
+  {
+    path: '/products/fan/domestic/bathroom/index_j.htm',
+    slug: 'bathroom-dryer',
+    label: '浴室用換気扇',
+  },
+  {
+    path: '/products/fan/domestic/toilet/index_j.htm',
+    slug: 'ventilation-fan',
+    label: 'トイレ用換気扇',
+  },
+  {
+    path: '/products/fan/domestic/underfloor/index_j.htm',
+    slug: 'ventilation-fan',
+    label: '床下用換気扇',
+  },
 ] as const;
 
 /** Parse a Toshiba category listing page */

@@ -183,11 +183,11 @@ export async function scrapeMitsubishiWink(): Promise<MitsubishiWinkScrapingResu
 
       let pageNum = 1;
       let categoryProductCount = 0;
-      const MAX_PAGES = 25; // Safety limit (100 products/page × 25 = 2500 max)
+      const MAX_PAGES = 100; // Safety limit (100 products/page × 100 = 10000 max)
 
       try {
         // Navigate to category (first page)
-        const categoryUrl = `${WINK_SSL_BASE}searchProduct.do?ccd=${category.ccd}`;
+        const categoryUrl = `${WINK_SSL_BASE}searchProduct.do?ccd=${category.ccd}&oldProductFlg=1`;
         await page.goto(categoryUrl, { waitUntil: 'networkidle', timeout: 30000 });
         await sleep(DELAY_MS);
 

@@ -3,12 +3,13 @@ import { scrapeTaroto, scrapeDetailPages } from './sources/taroto.js';
 import { scrapePanasonic, scrapePanasonicDetailPages } from './sources/panasonic.js';
 import { scrapeToshiba, scrapeToshibaDetailPages } from './sources/toshiba.js';
 import { scrapeMitsubishiWink, scrapeMitsubishiWinkDetailPages } from './sources/mitsubishi-wink.js';
+import { scrapePanasonicBiz } from './sources/panasonic-biz.js';
 import { importMitsubishiPdf } from './import-mitsubishi-pdf.js';
 import { crossReferenceSpecs } from './cross-reference.js';
 import { normalize, RawProduct } from './normalizer.js';
 import { uploadProducts } from './uploader.js';
 
-type SourceName = 'taroto' | 'panasonic' | 'toshiba' | 'mitsubishi-wink' | 'mitsubishi-pdf' | 'all';
+type SourceName = 'taroto' | 'panasonic' | 'panasonic-biz' | 'toshiba' | 'mitsubishi-wink' | 'mitsubishi-pdf' | 'all';
 type DetailSourceName = 'taroto' | 'toshiba' | 'panasonic' | 'mitsubishi-wink';
 
 async function scrapeSource(source: SourceName): Promise<{
@@ -22,6 +23,8 @@ async function scrapeSource(source: SourceName): Promise<{
       return scrapePanasonic();
     case 'toshiba':
       return scrapeToshiba();
+    case 'panasonic-biz':
+      return scrapePanasonicBiz();
     case 'mitsubishi-wink':
       return scrapeMitsubishiWink();
     case 'mitsubishi-pdf':
@@ -34,6 +37,7 @@ async function scrapeSource(source: SourceName): Promise<{
         scrapeTaroto(),
         scrapePanasonic(),
         scrapeToshiba(),
+        scrapePanasonicBiz(),
       ]);
 
       const products: RawProduct[] = [];

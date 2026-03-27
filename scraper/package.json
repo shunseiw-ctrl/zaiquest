@@ -12,6 +12,7 @@
     "scrape:toshiba": "tsx src/index.ts --source toshiba",
     "scrape:mitsubishi-wink": "tsx src/index.ts --source mitsubishi-wink",
     "scrape:mitsubishi-wink:detail": "tsx src/index.ts --detail --source mitsubishi-wink",
+    "scrape:panasonic-biz": "tsx src/index.ts --source panasonic-biz",
     "scrape:mitsubishi-pdf": "tsx src/index.ts --source mitsubishi-pdf",
     "scrape:all": "tsx src/index.ts --source all",
     "scrape:taroto:detail": "tsx src/index.ts --detail",

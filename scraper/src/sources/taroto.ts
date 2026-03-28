@@ -70,9 +70,23 @@ function extractPrice(text: string): string | null {
 
 /** Extract model number from product title */
 function extractModelNumber(text: string): string | null {
-  // Match patterns like VFP-8GK4, FY-08PD9D, V-08PQFF4, DVB-18S4, WD-240DK2, etc.
-  const match = text.match(/([A-Z]{1,5}[\-]?\d{1,5}[A-Z\d\-()]*)/i);
-  return match ? match[1] : null;
+  // Try multiple patterns in priority order:
+  const patterns = [
+    // Standard: FY-08PD9D, VFP-8GK4, DVB-18S4, VB-NET-GZ150P
+    /([A-Z]{2,5}[\-][A-Z0-9\-()]+)/i,
+    // Single-letter prefix: P-01DC, F-1SS3, W-40SBM
+    /([A-Z][\-]\d[A-Z0-9\-()]*)/i,
+    // No-hyphen: PYU1510, AL100
+    /([A-Z]{1,5}\d{1,5}[A-Z\d\-()]*)/i,
+    // Pure numeric (6+ digits): 41101370
+    /(\d{6,})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match && match[1].length >= 3) return match[1];
+  }
+  return null;
 }
 
 export interface TarotoScrapingResult {

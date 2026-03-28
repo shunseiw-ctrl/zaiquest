@@ -1,12 +1,16 @@
-import { chromium } from 'playwright';
 import * as cheerio from 'cheerio';
 import { RawProduct } from '../normalizer.js';
 
 const BIZ_BASE = 'https://www2.panasonic.biz/jp/air/kanki/okikae';
 const DELAY_MS = 2000;
 
-/** Search prefixes for Panasonic ventilation products */
-const SEARCH_PREFIXES = ['FY-', 'FV-'];
+/** Search prefixes for Panasonic ventilation products (split to avoid page truncation) */
+const SEARCH_PREFIXES = [
+  'FY-0', 'FY-1', 'FY-2', 'FY-3', 'FY-4', 'FY-5', 'FY-6', 'FY-7', 'FY-8', 'FY-9',
+  'FY-A', 'FY-B', 'FY-C', 'FY-D', 'FY-E', 'FY-F', 'FY-G', 'FY-H', 'FY-J', 'FY-K',
+  'FY-L', 'FY-M', 'FY-N', 'FY-R', 'FY-S', 'FY-T', 'FY-V', 'FY-W', 'FY-Y', 'FY-Z',
+  'FV-', 'XFY-', 'HF-', 'SF-', 'TF-', 'LF-', 'RF-',
+];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -33,87 +37,51 @@ export interface PanasonicBizScrapingResult {
   errors: string[];
 }
 
-/** Use Playwright to load full list page (handles JS-rendered content) */
-async function fetchAllModelNumbers(): Promise<string[]> {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+/** Parse model numbers from a list page HTML */
+function parseListPage(html: string): string[] {
+  const $ = cheerio.load(html);
+  const models: string[] = [];
   const seen = new Set<string>();
 
-  try {
-    const page = await context.newPage();
-
-    for (const prefix of SEARCH_PREFIXES) {
-      const url = `${BIZ_BASE}/result.php?search_hinban=${encodeURIComponent(prefix)}`;
-      console.log(`[Panasonic Biz] Loading list page for prefix "${prefix}"...`);
-
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-      await sleep(3000);
-
-      // Scroll to bottom repeatedly to trigger infinite scroll / lazy loading
-      let previousHeight = 0;
-      let scrollAttempts = 0;
-      const MAX_SCROLL_ATTEMPTS = 50;
-
-      while (scrollAttempts < MAX_SCROLL_ATTEMPTS) {
-        const currentHeight = await page.evaluate(() => document.body.scrollHeight);
-        if (currentHeight === previousHeight) {
-          // Try one more scroll + wait to be sure
-          await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-          await sleep(3000);
-          const finalHeight = await page.evaluate(() => document.body.scrollHeight);
-          if (finalHeight === currentHeight) break;
-        }
-        previousHeight = currentHeight;
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-        await sleep(2000);
-        scrollAttempts++;
-
-        if (scrollAttempts % 10 === 0) {
-          const currentCount = await page.evaluate(() =>
-            document.querySelectorAll('a[href*="detail_hinban"]').length
-          );
-          console.log(`[Panasonic Biz] Scroll ${scrollAttempts}: ${currentCount} links loaded`);
-        }
+  $('a[href*="detail_hinban"]').each((_, el) => {
+    const href = $(el).attr('href') || '';
+    const match = href.match(/detail_hinban=([A-Z0-9\-]+)/i);
+    if (match) {
+      const model = match[1].toUpperCase().trim();
+      if (!seen.has(model)) {
+        seen.add(model);
+        models.push(model);
       }
+    }
+  });
 
-      // Extract all model numbers from the fully-loaded page
-      const models = await page.evaluate(() => {
-        const links = document.querySelectorAll('a[href*="detail_hinban"]');
-        const results: string[] = [];
-        for (const link of links) {
-          const href = link.getAttribute('href') || '';
-          const match = href.match(/detail_hinban=([A-Z0-9\-]+)/i);
-          if (match) results.push(match[1].toUpperCase().trim());
-        }
-        return results;
-      });
+  return models;
+}
+
+/** Fetch all model numbers by querying each prefix separately (avoids page truncation) */
+async function fetchAllModelNumbers(): Promise<string[]> {
+  const seen = new Set<string>();
+
+  for (const prefix of SEARCH_PREFIXES) {
+    try {
+      const url = `${BIZ_BASE}/result.php?search_hinban=${encodeURIComponent(prefix)}`;
+      const html = await fetchPage(url);
+      const models = parseListPage(html);
 
       for (const model of models) {
         seen.add(model);
       }
 
-      console.log(`[Panasonic Biz] Prefix "${prefix}": ${models.length} links found, ${seen.size} unique total`);
+      if (models.length > 0) {
+        console.log(`[Panasonic Biz] Prefix "${prefix}": ${models.length} models (total: ${seen.size})`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[Panasonic Biz] Prefix "${prefix}" failed: ${msg}`);
     }
-
-    // Also try extracting from page text as fallback (for non-link model numbers)
-    const page2 = await context.newPage();
-    await page2.goto(`${BIZ_BASE}/result.php?search_hinban=FY-`, { waitUntil: 'networkidle', timeout: 60000 });
-    await sleep(2000);
-
-    const textModels = await page2.evaluate(() => {
-      const text = document.body.innerText;
-      const matches = text.match(/FY-[A-Z0-9\-]+/gi) || [];
-      return matches.map((m) => m.toUpperCase().trim());
-    });
-
-    for (const model of textModels) {
-      seen.add(model);
-    }
-
-    return Array.from(seen);
-  } finally {
-    await browser.close();
   }
+
+  return Array.from(seen);
 }
 
 interface DetailSpec {
